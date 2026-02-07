@@ -8,6 +8,7 @@ A collection of reusable [Claude Code](https://claude.ai/claude-code) skills and
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | **refactor-components** | Find large React components (.tsx/.jsx) and refactor them into smaller, focused components                              |
 | **refactor-code**       | Find large non-React code files (.ts/.js) and refactor them into smaller, focused files (routes, services, utils, etc.) |
+| **skill-creator**       | Guide for creating effective skills that extend Claude's capabilities. From [Anthropic's skills repo](https://github.com/anthropics/skills/tree/main/skills/skill-creator) |
 
 ## Commands
 
