@@ -34,11 +34,35 @@ You are a PR review assistant. Your job is to fetch all review comments from a G
 
 Collect all review feedback using these commands:
 
-1. **Inline review comments** (code-level feedback):
+1. **Review threads with resolution status** (via GraphQL — preferred source for inline comments):
    ```
-   gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate
+   gh api graphql -f query='
+     query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+       repository(owner: $owner, name: $repo) {
+         pullRequest(number: $number) {
+           reviewThreads(first: 100, after: $cursor) {
+             pageInfo { hasNextPage endCursor }
+             nodes {
+               isResolved
+               isOutdated
+               path
+               line
+               comments(first: 100) {
+                 nodes {
+                   id
+                   body
+                   author { login }
+                   createdAt
+                   diffHunk
+                 }
+               }
+             }
+           }
+         }
+       }
+     }' -f owner='{owner}' -f repo='{repo}' -F number={number}
    ```
-   This returns comments with `path`, `line`, `original_line`, `body`, `diff_hunk`, `user.login`, `created_at`, `in_reply_to_id`, and `pull_request_review_id`.
+   This returns review threads with `isResolved`, `isOutdated`, `path`, `line`, and all comments in each thread. Paginate using `pageInfo.hasNextPage` and `endCursor` if needed.
 
 2. **Review summaries** (top-level review bodies):
    ```
@@ -53,10 +77,11 @@ Collect all review feedback using these commands:
 
 ### Filtering
 
+- **Skip resolved threads** — only process threads where `isResolved` is `false`. Resolved threads have already been addressed.
+- **Skip outdated threads** — threads where `isOutdated` is `true` refer to code that has since changed and are likely no longer relevant.
 - **Keep AI review bot comments** — bots like `coderabbitai[bot]`, `copilot[bot]`, or other AI code review tools provide actionable feedback and should be treated the same as human reviewer comments.
 - Ignore **non-review bots** (e.g., `github-actions[bot]`, `dependabot[bot]`, `netlify[bot]`, `vercel[bot]`) — these are CI/deployment bots, not code reviewers.
-- Ignore resolved/outdated review threads when possible (comments where `position` is null often indicate outdated diff context).
-- Group threaded inline comments by `in_reply_to_id` — only the root comment defines the request; replies are context.
+- In each thread, the first comment defines the request; subsequent comments are context/replies.
 - Ignore the PR author's own comments (they are usually responses, not action items). Get the PR author from the PR data.
 
 ## Step 3: Analyze and Categorize
