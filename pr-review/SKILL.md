@@ -53,7 +53,8 @@ Collect all review feedback using these commands:
 
 ### Filtering
 
-- Ignore bot comments (users ending in `[bot]` or known bots like `github-actions`).
+- **Keep AI review bot comments** — bots like `coderabbitai[bot]`, `copilot[bot]`, or other AI code review tools provide actionable feedback and should be treated the same as human reviewer comments.
+- Ignore **non-review bots** (e.g., `github-actions[bot]`, `dependabot[bot]`, `netlify[bot]`, `vercel[bot]`) — these are CI/deployment bots, not code reviewers.
 - Ignore resolved/outdated review threads when possible (comments where `position` is null often indicate outdated diff context).
 - Group threaded inline comments by `in_reply_to_id` — only the root comment defines the request; replies are context.
 - Ignore the PR author's own comments (they are usually responses, not action items). Get the PR author from the PR data.
