@@ -9,6 +9,7 @@ A collection of reusable [Claude Code](https://claude.ai/claude-code) skills and
 | **refactor-components** | Find large React components (.tsx/.jsx) and refactor them into smaller, focused components                              |
 | **refactor-code**       | Find large non-React code files (.ts/.js) and refactor them into smaller, focused files (routes, services, utils, etc.) |
 | **pr-review**           | Fetch PR review comments, analyze and categorize them, and resolve selected feedback items                              |
+| **todo-resolver**       | Find TODO/FIXME/HACK comments in the codebase, analyze their impact and complexity, and resolve them                    |
 | **skill-creator**       | Guide for creating effective skills that extend Claude's capabilities. From [Anthropic's skills repo](https://github.com/anthropics/skills/tree/main/skills/skill-creator) |
 
 ## Commands
