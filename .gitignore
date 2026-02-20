@@ -1,1 +1,3 @@
 .claude
+**/config.json
+.playwright-mcp

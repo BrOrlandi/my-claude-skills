@@ -5,7 +5,10 @@ imgbb_upload.py — Upload images to ImgBB and update PR descriptions.
 Usage:
   imgbb_upload.py <filepath>
       Upload a single image. Prints {"url": "https://i.ibb.co/..."} to stdout.
-      Requires the IMGBB_API_KEY environment variable.
+      API key is read from the skill's config.json or the IMGBB_API_KEY env var.
+
+  imgbb_upload.py --save-api-key <key>
+      Save the ImgBB API key to the skill's config.json.
 
   imgbb_upload.py --update-pr <number> --entry "<label>" "<url>" [--entry ...]
       Update the ## Screenshots section of a GitHub PR description.
@@ -20,8 +23,40 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Config lives next to the scripts/ folder, inside the skill directory.
+# Resolves symlinks so it always writes to the real file in the repo.
+CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.json"
+
 MAX_SIZE_BYTES = 32 * 1024 * 1024  # 32 MB (ImgBB limit)
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}
+
+
+# ---------------------------------------------------------------------------
+# Config helpers
+# ---------------------------------------------------------------------------
+
+def load_config() -> dict:
+    if CONFIG_PATH.exists():
+        try:
+            return json.loads(CONFIG_PATH.read_text())
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def save_config(data: dict) -> None:
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    existing = load_config()
+    existing.update(data)
+    CONFIG_PATH.write_text(json.dumps(existing, indent=2))
+
+
+def get_api_key() -> str | None:
+    """Return API key from config file, falling back to env var."""
+    key = load_config().get("imgbb_api_key")
+    if key:
+        return key
+    return os.environ.get("IMGBB_API_KEY")
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +233,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="ImgBB upload helper for pr-screenshots skill.")
 
     parser.add_argument("filepath", nargs="?", help="Image file to upload.")
+    parser.add_argument("--save-api-key", metavar="KEY", help="Save ImgBB API key to skill config.")
     parser.add_argument("--update-pr", metavar="PR_NUMBER", help="PR number to update.")
     parser.add_argument(
         "--entry",
@@ -209,6 +245,12 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    # --save-api-key
+    if args.save_api_key:
+        save_config({"imgbb_api_key": args.save_api_key})
+        print(f"API key saved to {CONFIG_PATH}")
+        return
 
     # --update-pr
     if args.update_pr:
@@ -227,11 +269,13 @@ def main() -> None:
         print(f"Error: file not found: {args.filepath}", file=sys.stderr)
         sys.exit(1)
 
-    api_key = os.environ.get("IMGBB_API_KEY")
+    api_key = get_api_key()
     if not api_key:
         print(
-            "Error: IMGBB_API_KEY environment variable is not set. "
-            "Get your free API key at https://api.imgbb.com/",
+            f"Error: no ImgBB API key found.\n"
+            f"  Option 1 (save to skill config): python3 {__file__} --save-api-key <your-key>\n"
+            f"  Option 2 (env var):               export IMGBB_API_KEY=<your-key>\n"
+            f"  Get your free key at: https://api.imgbb.com/",
             file=sys.stderr,
         )
         sys.exit(1)
