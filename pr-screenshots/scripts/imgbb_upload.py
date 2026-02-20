@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
 """
-imgur_upload.py — Upload images to Imgur and update PR descriptions.
+imgbb_upload.py — Upload images to ImgBB and update PR descriptions.
 
 Usage:
-  imgur_upload.py <filepath>
-      Upload a single image. Prints {"url": "https://i.imgur.com/..."} to stdout.
+  imgbb_upload.py <filepath>
+      Upload a single image. Prints {"url": "https://i.ibb.co/..."} to stdout.
+      Requires the IMGBB_API_KEY environment variable.
 
-  imgur_upload.py --save-client-id <id>
-      Persist the Imgur Client ID to ~/.claude/pr-screenshots.json.
-
-  imgur_upload.py --update-pr <number> --entry "<label>" "<url>" [--entry ...]
+  imgbb_upload.py --update-pr <number> --entry "<label>" "<url>" [--entry ...]
       Update the ## Screenshots section of a GitHub PR description.
 """
 
 import argparse
-import base64
 import json
 import os
 import re
@@ -23,26 +20,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-CONFIG_PATH = Path.home() / ".claude" / "pr-screenshots.json"
-MAX_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
-
-
-# ---------------------------------------------------------------------------
-# Config helpers
-# ---------------------------------------------------------------------------
-
-def load_config() -> dict:
-    if CONFIG_PATH.exists():
-        try:
-            return json.loads(CONFIG_PATH.read_text())
-        except json.JSONDecodeError:
-            return {}
-    return {}
-
-
-def save_config(data: dict) -> None:
-    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(json.dumps(data, indent=2))
+MAX_SIZE_BYTES = 32 * 1024 * 1024  # 32 MB (ImgBB limit)
+SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}
 
 
 # ---------------------------------------------------------------------------
@@ -56,11 +35,11 @@ def compress_image(filepath: str) -> str:
         return filepath
 
     ext = Path(filepath).suffix.lower()
-    # GIFs can't be recompressed with sips the same way; upload as-is with a warning
+
     if ext == ".gif":
         print(
-            f"Warning: GIF is {size / 1024 / 1024:.1f} MB (>{MAX_SIZE_BYTES / 1024 / 1024:.0f} MB). "
-            "Uploading as-is — Imgur may reject large GIFs.",
+            f"Warning: GIF is {size / 1024 / 1024:.1f} MB (>{MAX_SIZE_BYTES / 1024 / 1024:.0f} MB limit). "
+            "Uploading as-is — ImgBB may reject it.",
             file=sys.stderr,
         )
         return filepath
@@ -98,7 +77,7 @@ def compress_image(filepath: str) -> str:
     if final_size > MAX_SIZE_BYTES:
         print(
             f"Warning: image is still {final_size / 1024 / 1024:.1f} MB after compression. "
-            "Imgur may reject it.",
+            "ImgBB may reject it.",
             file=sys.stderr,
         )
     return tmp2_path
@@ -108,22 +87,25 @@ def compress_image(filepath: str) -> str:
 # Upload
 # ---------------------------------------------------------------------------
 
-def upload_image(filepath: str, client_id: str) -> str:
-    """Upload image to Imgur and return the direct image URL."""
-    compressed_path = compress_image(filepath)
+def upload_image(filepath: str, api_key: str) -> str:
+    """Upload image to ImgBB and return the hosted image URL (data.display_url)."""
+    ext = Path(filepath).suffix.lower()
+    if ext not in SUPPORTED_EXTENSIONS:
+        print(
+            f"Warning: '{ext}' may not be supported by ImgBB. "
+            f"Supported formats: {', '.join(sorted(SUPPORTED_EXTENSIONS))}.",
+            file=sys.stderr,
+        )
 
-    with open(compressed_path, "rb") as f:
-        image_data = base64.b64encode(f.read()).decode("utf-8")
+    compressed_path = compress_image(filepath)
 
     result = subprocess.run(
         [
             "curl",
-            "--silent",
-            "--request", "POST",
-            "--url", "https://api.imgur.com/3/image",
-            "--header", f"Authorization: Client-ID {client_id}",
-            "--form", f"image={image_data}",
-            "--form", "type=base64",
+            "-s",
+            "-X", "POST",
+            f"https://api.imgbb.com/1/upload?key={api_key}",
+            "-F", f"image=@{compressed_path}",
         ],
         capture_output=True,
         text=True,
@@ -136,15 +118,16 @@ def upload_image(filepath: str, client_id: str) -> str:
     try:
         response = json.loads(result.stdout)
     except json.JSONDecodeError:
-        print(f"Error: unexpected response from Imgur: {result.stdout}", file=sys.stderr)
+        print(f"Error: unexpected response from ImgBB: {result.stdout}", file=sys.stderr)
         sys.exit(1)
 
     if not response.get("success"):
-        error = response.get("data", {}).get("error", "Unknown error")
-        print(f"Error: Imgur upload failed: {error}", file=sys.stderr)
+        error = response.get("error", {})
+        message = error.get("message", str(error)) if isinstance(error, dict) else str(error)
+        print(f"Error: ImgBB upload failed: {message}", file=sys.stderr)
         sys.exit(1)
 
-    url = response["data"]["link"]
+    url = response["data"]["display_url"]
     return url
 
 
@@ -170,7 +153,6 @@ def build_screenshots_section(entries: list[tuple[str, str]]) -> str:
 
 def update_pr(pr_number: str, entries: list[tuple[str, str]]) -> None:
     """Fetch current PR body, replace/append ## Screenshots section, update via gh."""
-    # Fetch current PR body
     result = subprocess.run(
         ["gh", "pr", "view", pr_number, "--json", "body", "-q", ".body"],
         capture_output=True,
@@ -189,7 +171,6 @@ def update_pr(pr_number: str, entries: list[tuple[str, str]]) -> None:
         separator = "\n\n" if current_body and not current_body.endswith("\n\n") else ""
         new_body = current_body + separator + new_section
 
-    # Write body to a temp file to avoid shell escaping issues
     with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as tmp:
         tmp.write(new_body)
         tmp_path = tmp.name
@@ -214,10 +195,9 @@ def update_pr(pr_number: str, entries: list[tuple[str, str]]) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Imgur upload helper for pr-screenshots skill.")
+    parser = argparse.ArgumentParser(description="ImgBB upload helper for pr-screenshots skill.")
 
     parser.add_argument("filepath", nargs="?", help="Image file to upload.")
-    parser.add_argument("--save-client-id", metavar="CLIENT_ID", help="Persist Imgur Client ID.")
     parser.add_argument("--update-pr", metavar="PR_NUMBER", help="PR number to update.")
     parser.add_argument(
         "--entry",
@@ -229,14 +209,6 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-
-    # --save-client-id
-    if args.save_client_id:
-        cfg = load_config()
-        cfg["client_id"] = args.save_client_id
-        save_config(cfg)
-        print(f"Client ID saved to {CONFIG_PATH}")
-        return
 
     # --update-pr
     if args.update_pr:
@@ -255,17 +227,16 @@ def main() -> None:
         print(f"Error: file not found: {args.filepath}", file=sys.stderr)
         sys.exit(1)
 
-    cfg = load_config()
-    client_id = cfg.get("client_id")
-    if not client_id:
+    api_key = os.environ.get("IMGBB_API_KEY")
+    if not api_key:
         print(
-            f"Error: no Imgur Client ID configured. "
-            f"Run: python3 {__file__} --save-client-id <your-client-id>",
+            "Error: IMGBB_API_KEY environment variable is not set. "
+            "Get your free API key at https://api.imgbb.com/",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    url = upload_image(args.filepath, client_id)
+    url = upload_image(args.filepath, api_key)
     print(json.dumps({"url": url}))
 
 

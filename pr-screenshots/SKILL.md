@@ -1,13 +1,13 @@
 ---
 name: pr-screenshots
-description: Capture screenshots or GIF recordings of a new UI feature, upload them to Imgur, and add a Screenshots section to the current PR description. Use when the user wants to visually document a feature in a pull request — triggered by phrases like "add screenshots to my PR", "document this feature visually", "screenshot the new screens", or "record a GIF of this flow".
+description: Capture screenshots or GIF recordings of a new UI feature, upload them to ImgBB, and add a Screenshots section to the current PR description. Use when the user wants to visually document a feature in a pull request — triggered by phrases like "add screenshots to my PR", "document this feature visually", "screenshot the new screens", or "record a GIF of this flow".
 disable-model-invocation: true
 argument-hint: "[screenshot|gif] [url]"
 ---
 
 # PR Screenshots Skill
 
-Capture screenshots or GIF recordings of UI features, upload them to Imgur, and update the current PR description with a labeled Screenshots section.
+Capture screenshots or GIF recordings of UI features, upload them to ImgBB, and update the current PR description with a labeled Screenshots section.
 
 ## Step 1: Identify the PR
 
@@ -20,16 +20,20 @@ If no PR is found, stop and tell the user: "No open PR found for the current bra
 
 Extract `number`, `title`, and `url` from the result.
 
-## Step 2: Check Imgur Credentials
+## Step 2: Check ImgBB API Key
 
-Read `~/.claude/pr-screenshots.json`. If the file doesn't exist or `client_id` is missing:
+Check whether the `IMGBB_API_KEY` environment variable is set:
 
-1. Tell the user: "You need an Imgur Client ID to upload images. Register a free application at https://api.imgur.com/oauth2/addclient (select 'OAuth 2 authorization without a callback URL') to get a Client ID."
-2. Ask: "Please provide your Imgur Client ID:"
-3. Once provided, run:
-   ```bash
-   python3 ~/.claude/skills/pr-screenshots/scripts/imgur_upload.py --save-client-id <id>
-   ```
+```bash
+echo "${IMGBB_API_KEY:+set}"
+```
+
+If it is not set, tell the user:
+
+> "You need an ImgBB API key to upload images. Get your free key at https://api.imgbb.com/ and set it in your shell:
+> `export IMGBB_API_KEY=your_key_here`"
+
+Stop and wait for the user to set the variable before continuing.
 
 ## Step 3: Plan the Captures
 
@@ -121,14 +125,14 @@ For each item in the user's list:
 
 After all captures, proceed to upload.
 
-## Step 5: Upload to Imgur
+## Step 5: Upload to ImgBB
 
-For each captured file (PNG or GIF), run:
+For each captured file (JPG, PNG, GIF, BMP, or WEBP), run:
 ```bash
-python3 ~/.claude/skills/pr-screenshots/scripts/imgur_upload.py <filepath>
+python3 ~/.claude/skills/pr-screenshots/scripts/imgbb_upload.py <filepath>
 ```
 
-The script outputs JSON: `{"url": "https://i.imgur.com/...", "label": "..."}`.
+The script reads `IMGBB_API_KEY` from the environment, uploads the file, and outputs JSON: `{"url": "https://i.ibb.co/..."}`.
 
 Collect all `{label, url}` pairs. If any upload fails, report the error and ask the user whether to retry or skip.
 
@@ -136,7 +140,7 @@ Collect all `{label, url}` pairs. If any upload fails, report the error and ask 
 
 Run:
 ```bash
-python3 ~/.claude/skills/pr-screenshots/scripts/imgur_upload.py \
+python3 ~/.claude/skills/pr-screenshots/scripts/imgbb_upload.py \
   --update-pr <number> \
   --entry "<label1>" "<url1>" \
   --entry "<label2>" "<url2>" \
@@ -162,10 +166,10 @@ The skill adds the following section to the PR description:
 ## Screenshots
 
 ### <Label for screenshot 1>
-![<label>](<imgur-url>)
+![<label>](<imgbb-url>)
 
 ### <Label for screenshot 2>
-![<label>](<imgur-url>)
+![<label>](<imgbb-url>)
 ```
 
 If a `## Screenshots` section already exists, it is replaced entirely with the new content.
