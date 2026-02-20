@@ -22,18 +22,37 @@ Extract `number`, `title`, and `url` from the result.
 
 ## Step 2: Check ImgBB API Key
 
-Check whether the `IMGBB_API_KEY` environment variable is set:
+Run the upload script without arguments to let it self-diagnose:
 
 ```bash
-echo "${IMGBB_API_KEY:+set}"
+python3 ~/.claude/skills/pr-screenshots/scripts/imgbb_upload.py --help
 ```
 
-If it is not set, tell the user:
+Then check for an existing key (config file takes priority over env var):
 
-> "You need an ImgBB API key to upload images. Get your free key at https://api.imgbb.com/ and set it in your shell:
-> `export IMGBB_API_KEY=your_key_here`"
+```bash
+python3 - <<'EOF'
+import json, os
+from pathlib import Path
+cfg = Path("~/.claude/skills/pr-screenshots/config.json").expanduser()
+key = (json.loads(cfg.read_text()).get("imgbb_api_key") if cfg.exists() else None) or os.environ.get("IMGBB_API_KEY")
+print("set" if key else "missing")
+EOF
+```
 
-Stop and wait for the user to set the variable before continuing.
+If the key is already present, continue to Step 3.
+
+If the key is **missing**, tell the user:
+
+> "No ImgBB API key found. Get your free key at https://api.imgbb.com/ and provide it — I'll save it to the skill's config so you won't need to set it again."
+
+Once the user provides the key, save it:
+
+```bash
+python3 ~/.claude/skills/pr-screenshots/scripts/imgbb_upload.py --save-api-key <key>
+```
+
+The key is stored in `~/.claude/skills/pr-screenshots/config.json` (gitignored) and will be reused automatically on all future runs.
 
 ## Step 3: Plan the Captures
 
