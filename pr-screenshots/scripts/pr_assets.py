@@ -3,13 +3,13 @@
 pr_assets.py — Upload screenshots to a GitHub orphan branch and update PR descriptions.
 
 Images are stored in the 'pr-assets' orphan branch of the current repo and served
-via raw.githubusercontent.com, which preserves full quality (no compression) and
-opens images inline in the browser instead of forcing a download.
+via github.com blob URLs with ?raw=true, which works for both public and private
+repositories (authenticated users can view images directly).
 
 Usage:
   pr_assets.py <filepath>
       Upload a single image to the pr-assets branch.
-      Prints {"url": "https://raw.githubusercontent.com/..."} to stdout.
+      Prints {"url": "https://github.com/{owner}/{repo}/blob/pr-assets/{filename}?raw=true"} to stdout.
 
   pr_assets.py --setup
       Create the pr-assets orphan branch in the current repo (run once per repo).
@@ -68,7 +68,7 @@ def create_pr_assets_branch(repo: str) -> None:
     readme = (
         b"# PR Assets\n\n"
         b"Screenshots hosted here for PR descriptions. "
-        b"**Never merge this branch** — it has no shared history with main/develop.\n"
+        b"**Never merge this branch** - it has no shared history with main/develop.\n"
     )
     readme_b64 = base64.b64encode(readme).decode()
 
@@ -123,10 +123,14 @@ def upload_to_github(filepath: str, repo: str) -> str:
     Generates a unique filename using a short UUID suffix to guarantee
     no collisions with existing files (e.g. screenshot-a1b2c3d4.png).
 
-    Returns the raw.githubusercontent.com URL, which:
-    - Serves the file with the correct Content-Type (e.g. image/png)
-    - Opens inline in the browser when clicked (no forced download)
-    - Preserves full resolution — no compression applied
+    Returns a github.com blob URL with ?raw=true, which works for both
+    public and private repos. Authenticated users viewing the PR on
+    github.com can see the images because the URL is on the same domain
+    and their session carries through.
+
+    Note: raw.githubusercontent.com URLs do NOT work for private repos
+    because GitHub's markdown renderer proxies images through its camo CDN,
+    which cannot authenticate to fetch private repo content.
     """
     stem = Path(filepath).stem
     suffix = Path(filepath).suffix
@@ -144,7 +148,7 @@ def upload_to_github(filepath: str, repo: str) -> str:
 
     _gh_api("PUT", f"/repos/{repo}/contents/{filename}", payload)
 
-    return f"https://raw.githubusercontent.com/{repo}/pr-assets/{filename}"
+    return f"https://github.com/{repo}/blob/pr-assets/{filename}?raw=true"
 
 
 # ---------------------------------------------------------------------------

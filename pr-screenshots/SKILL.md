@@ -1,6 +1,6 @@
 ---
 name: pr-screenshots
-description: Capture screenshots or GIF recordings of a new UI feature, upload them losslessly to a GitHub orphan branch (pr-assets), and add a Screenshots section to the current PR description. Images are served via raw.githubusercontent.com so they open in a new tab when clicked (no forced download). Use when the user wants to visually document a feature in a pull request — triggered by phrases like "add screenshots to my PR", "document this feature visually", "screenshot the new screens", or "record a GIF of this flow".
+description: Capture screenshots or GIF recordings of a new UI feature, upload them losslessly to a GitHub orphan branch (pr-assets), and add a Screenshots section to the current PR description. Images are served via github.com blob URLs which work for both public and private repos. Use when the user wants to visually document a feature in a pull request — triggered by phrases like "add screenshots to my PR", "document this feature visually", "screenshot the new screens", or "record a GIF of this flow".
 disable-model-invocation: true
 argument-hint: "[screenshot|gif] [url]"
 ---
@@ -9,9 +9,9 @@ argument-hint: "[screenshot|gif] [url]"
 
 Capture screenshots or GIF recordings of UI features, upload them **losslessly** to a dedicated GitHub orphan branch (`pr-assets`), and update the current PR description with a labeled Screenshots section.
 
-> **Why orphan branch + raw.githubusercontent.com?**
+> **Why orphan branch + github.com blob URLs?**
 > - **No compression** — images are stored as-is (PNG/GIF), unlike ImgBB which re-encodes them.
-> - **No forced download** — `raw.githubusercontent.com` serves images with the correct `Content-Type` so clicking opens them in a new browser tab instead of downloading.
+> - **Works for private repos** — uses `github.com/{owner}/{repo}/blob/pr-assets/{file}?raw=true` URLs, which render correctly in PR markdown for any authenticated user. Unlike `raw.githubusercontent.com` URLs, these work because GitHub's markdown renderer can resolve images on the same `github.com` domain using the viewer's session.
 > - **Not in the repo history** — the `pr-assets` branch is orphan (no shared ancestor with `main`/`develop`) and is never merged, so it doesn't bloat `git clone`.
 
 ---
@@ -188,12 +188,14 @@ For each captured file (PNG, GIF, WEBP, JPG), run:
 python3 ~/.claude/skills/pr-screenshots/scripts/pr_assets.py <filepath>
 ```
 
-The script uploads the file **as-is** (no compression, no re-encoding) to the `pr-assets` orphan branch of the current repo via the GitHub Contents API. It prints JSON: `{"url": "https://raw.githubusercontent.com/{owner}/{repo}/pr-assets/{filename}"}`.
+The script uploads the file **as-is** (no compression, no re-encoding) to the `pr-assets` orphan branch of the current repo via the GitHub Contents API. It prints JSON: `{"url": "https://github.com/{owner}/{repo}/blob/pr-assets/{filename}?raw=true"}`.
 
-The `raw.githubusercontent.com` URL:
-- Serves the file with the correct `Content-Type` (e.g. `image/png`) — clicking the image in the PR opens it in a new tab instead of downloading it.
+The `github.com/blob/...?raw=true` URL:
+- Renders correctly in PR markdown for both **public and private** repositories.
+- Works because authenticated GitHub users viewing the PR are already logged in on `github.com`, and the image URL is on the same domain — their session carries through.
 - Preserves full resolution and quality — no lossy compression.
-- Works for private repos for authenticated GitHub users (i.e. anyone who can view the PR).
+
+> **Why not `raw.githubusercontent.com`?** GitHub's markdown renderer proxies external images through its camo CDN. For private repos, the camo proxy cannot authenticate to `raw.githubusercontent.com`, causing images to appear broken. The `github.com/blob/...?raw=true` format avoids this issue.
 
 Collect all `{label, url}` pairs. If any upload fails, report the error and ask the user whether to retry or skip.
 
@@ -227,13 +229,13 @@ The skill adds the following section to the PR description:
 ## Screenshots
 
 ### <Label for screenshot 1>
-![<label>](<raw.githubusercontent.com url>)
+![<label>](<github.com blob url with ?raw=true>)
 
 ### <Label for screenshot 1> – Mobile
-![<label> – Mobile](<raw.githubusercontent.com url>)
+![<label> – Mobile](<github.com blob url with ?raw=true>)
 
 ### <Label for screenshot 2>
-![<label>](<raw.githubusercontent.com url>)
+![<label>](<github.com blob url with ?raw=true>)
 ```
 
 When both desktop and mobile captures exist for the same screen, group them together under consecutive headings (desktop first, then mobile). If a `## Screenshots` section already exists, it is replaced entirely with the new content.
