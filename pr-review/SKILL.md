@@ -16,17 +16,17 @@ Review a GitHub PR's diff and submit a single GitHub review with inline comments
 ## Step 1: Identify the PR
 
 1. Get the repository:
-   ```
+   ```bash
    gh repo view --json nameWithOwner -q '.nameWithOwner'
    ```
 2. If a PR number was provided in `$ARGUMENTS`, use it directly.
 3. If no PR number was provided, detect the PR for the current branch:
-   ```
+   ```bash
    gh pr list --head "$(git branch --show-current)" --json number,title,url --limit 1
    ```
 4. If no PR is found, inform the user and stop.
 5. Fetch PR metadata:
-   ```
+   ```bash
    gh pr view <NUMBER> --json number,title,url,headRefName,baseRefName,author,body
    ```
 6. Show the PR title and URL for confirmation before proceeding.
@@ -34,11 +34,11 @@ Review a GitHub PR's diff and submit a single GitHub review with inline comments
 ## Step 2: Fetch the Diff and Changed Files
 
 1. Get the full diff:
-   ```
+   ```bash
    gh pr diff <NUMBER>
    ```
 2. Get the list of changed files with line counts:
-   ```
+   ```bash
    gh pr view <NUMBER> --json files --jq '.files[] | "\(.path) +\(.additions) -\(.deletions)"'
    ```
 
@@ -78,7 +78,7 @@ Display ALL findings sorted by severity (critical first), then by file order in 
 
 For each finding:
 
-```
+```md
 ### #N — [TAG] file/path.ts:L<line>
 **Issue**: [Clear, concise description of the problem]
 **Suggestion**: [Concrete fix or code change]
@@ -97,7 +97,7 @@ Then ask:
 
 Submit a single review using the GitHub API with event `COMMENT`:
 
-```
+```bash
 gh api repos/{owner}/{repo}/pulls/{number}/reviews --method POST --input /tmp/pr-review-payload.json
 ```
 
@@ -127,7 +127,7 @@ Construct a temporary JSON file with the review data:
 ```
 
 Submit with:
-```
+```bash
 gh api repos/{owner}/{repo}/pulls/{number}/reviews --method POST --input /tmp/pr-review-payload.json
 ```
 
@@ -143,7 +143,7 @@ Clean up the temp file after submission.
 
 After successful submission:
 
-```
+```md
 ## Review Submitted
 
 PR #<number> — <title>

@@ -16,17 +16,17 @@ You are a PR review assistant. Your job is to fetch all review comments from a G
 ## Step 1: Identify the PR
 
 1. Get the repository from the git remote:
-   ```
+   ```bash
    gh repo view --json nameWithOwner -q '.nameWithOwner'
    ```
 2. If a PR number was provided in `$ARGUMENTS`, use it directly.
 3. If no PR number was provided, detect the PR for the current branch:
-   ```
+   ```bash
    gh pr list --head "$(git branch --show-current)" --json number,title,url --limit 1
    ```
 4. If no PR is found, inform the user and stop.
 5. Show the PR title and URL for confirmation:
-   ```
+   ```bash
    gh pr view <NUMBER> --json number,title,url,headRefName,baseRefName,author
    ```
 
@@ -35,7 +35,7 @@ You are a PR review assistant. Your job is to fetch all review comments from a G
 Collect all review feedback automatically — never ask the user before fetching.
 
 1. **Review threads with resolution status** (via GraphQL — preferred source for inline comments):
-   ```
+   ```graphql
    gh api graphql -f query='
      query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
        repository(owner: $owner, name: $repo) {
@@ -66,13 +66,13 @@ Collect all review feedback automatically — never ask the user before fetching
    This returns review threads with `id` (needed for resolving), `isResolved`, `isOutdated`, `path`, `line`, and all comments in each thread. Paginate using `pageInfo.hasNextPage` and `endCursor` if needed.
 
 2. **Review summaries** (top-level review bodies):
-   ```
+   ```bash
    gh api repos/{owner}/{repo}/pulls/{number}/reviews --paginate
    ```
    This returns reviews with `body`, `state` (APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED), and `user.login`.
 
 3. **PR conversation comments** (general discussion, not tied to code):
-   ```
+   ```bash
    gh pr view <NUMBER> --json comments
    ```
 
@@ -113,7 +113,7 @@ For each actionable comment (everything except 👍 Praise), perform deep analys
 
 1. **Read the code** at the referenced `path:line` plus ~50 lines of surrounding context using the Read tool.
 2. **Read the PR diff** for the file:
-   ```
+   ```bash
    gh pr diff <NUMBER> -- <path>
    ```
 3. **Evaluate the comment** — does the reviewer's feedback make sense given the current code? Is it still relevant?
@@ -126,7 +126,7 @@ For each actionable comment (everything except 👍 Praise), perform deep analys
 
 Display ALL comments in **sequential PR order** (not grouped by category). For each comment show:
 
-```
+```md
 ### #N — [TAG] file/path.ts:line
 **Reviewer**: @username
 **Comment**: [reviewer's text, abbreviated if very long]
@@ -140,7 +140,7 @@ Display ALL comments in **sequential PR order** (not grouped by category). For e
 ```
 
 For 👍 Praise comments, show a single-line entry:
-```
+```md
 ### #N — 👍 file/path.ts:line — @username: "Nice work!"
 ```
 
@@ -187,7 +187,7 @@ Then process comments **one by one** in PR order:
 
 Use the GraphQL mutation `resolveReviewThread` to mark threads as resolved on GitHub:
 
-```
+```graphql
 gh api graphql -f query='
   mutation($threadId: ID!) {
     resolveReviewThread(input: { threadId: $threadId }) {
@@ -210,7 +210,7 @@ The `threadId` comes from the `id` field on the `reviewThreads > nodes` fetched 
 
 After resolving all selected items, present a summary table:
 
-```
+```md
 ## PR #123 — Resolution Summary
 
 | # | Tag | File | Action Taken | Thread |
