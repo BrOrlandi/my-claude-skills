@@ -1,189 +1,155 @@
 ---
 name: pr-review
-description: Fetch PR review comments from GitHub, analyze them by category (required changes, suggestions, questions, nitpicks), and let the user choose which ones to resolve. Use when the user wants to address PR feedback.
+description: Review a GitHub Pull Request and submit a single review with inline code comments. Identifies bugs, security vulnerabilities, performance issues, logic errors, missing edge cases, and suggests improvements. Use when the user wants to review a PR, do a code review, or add review comments to a pull request.
 disable-model-invocation: true
 argument-hint: "[PR number]"
 ---
 
-# PR Review Resolver
+# PR Review
 
-You are a PR review assistant. Your job is to fetch all review comments from a GitHub Pull Request, analyze and categorize them, present an actionable summary, and execute only the changes the user approves.
+Review a GitHub PR's diff and submit a single GitHub review with inline comments identifying bugs, performance issues, security concerns, and improvements.
 
 ## Arguments
 
-- `$ARGUMENTS` (optional): The PR number to analyze. If not provided, detect the PR associated with the current branch.
+- `$ARGUMENTS` (optional): The PR number to review. If not provided, detect the PR associated with the current branch.
 
 ## Step 1: Identify the PR
 
-1. Get the repository from the git remote:
-   ```
+1. Get the repository:
+   ```bash
    gh repo view --json nameWithOwner -q '.nameWithOwner'
    ```
 2. If a PR number was provided in `$ARGUMENTS`, use it directly.
 3. If no PR number was provided, detect the PR for the current branch:
-   ```
+   ```bash
    gh pr list --head "$(git branch --show-current)" --json number,title,url --limit 1
    ```
 4. If no PR is found, inform the user and stop.
-5. Show the PR title and URL for confirmation:
+5. Fetch PR metadata:
+   ```bash
+   gh pr view <NUMBER> --json number,title,url,headRefName,baseRefName,author,body
    ```
-   gh pr view <NUMBER> --json number,title,url,headRefName,baseRefName
-   ```
+6. Show the PR title and URL for confirmation before proceeding.
 
-## Step 2: Fetch Review Comments
+## Step 2: Fetch the Diff and Changed Files
 
-Collect all review feedback using these commands:
-
-1. **Review threads with resolution status** (via GraphQL — preferred source for inline comments):
+1. Get the full diff:
+   ```bash
+   gh pr diff <NUMBER>
    ```
-   gh api graphql -f query='
-     query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
-       repository(owner: $owner, name: $repo) {
-         pullRequest(number: $number) {
-           reviewThreads(first: 100, after: $cursor) {
-             pageInfo { hasNextPage endCursor }
-             nodes {
-               isResolved
-               isOutdated
-               path
-               line
-               comments(first: 100) {
-                 nodes {
-                   id
-                   body
-                   author { login }
-                   createdAt
-                   diffHunk
-                 }
-               }
-             }
-           }
-         }
-       }
-     }' -f owner='{owner}' -f repo='{repo}' -F number={number}
-   ```
-   This returns review threads with `isResolved`, `isOutdated`, `path`, `line`, and all comments in each thread. Paginate using `pageInfo.hasNextPage` and `endCursor` if needed.
-
-2. **Review summaries** (top-level review bodies):
-   ```
-   gh api repos/{owner}/{repo}/pulls/{number}/reviews --paginate
-   ```
-   This returns reviews with `body`, `state` (APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED), and `user.login`.
-
-3. **PR conversation comments** (general discussion, not tied to code):
-   ```
-   gh pr view <NUMBER> --json comments
+2. Get the list of changed files with line counts:
+   ```bash
+   gh pr view <NUMBER> --json files --jq '.files[] | "\(.path) +\(.additions) -\(.deletions)"'
    ```
 
-### Filtering
+## Step 3: Analyze Each Changed File
 
-- **Skip resolved threads** — only process threads where `isResolved` is `false`. Resolved threads have already been addressed.
-- **Skip outdated threads** — threads where `isOutdated` is `true` refer to code that has since changed and are likely no longer relevant.
-- **Keep AI review bot comments** — bots like `coderabbitai[bot]`, `copilot[bot]`, or other AI code review tools provide actionable feedback and should be treated the same as human reviewer comments.
-- Ignore **non-review bots** (e.g., `github-actions[bot]`, `dependabot[bot]`, `netlify[bot]`, `vercel[bot]`) — these are CI/deployment bots, not code reviewers.
-- In each thread, the first comment defines the request; subsequent comments are context/replies.
-- Ignore the PR author's own comments (they are usually responses, not action items). Get the PR author from the PR data.
+For each changed file in the diff:
 
-## Step 3: Analyze and Categorize
+1. **Read the full file** for context (not just the diff) using the Read tool.
+2. **Understand the purpose** of the changes from the diff hunks and surrounding code.
+3. **Review for issues** across these categories:
 
-For each root review comment, classify it into one of these categories:
+| Tag | What to look for |
+|-----|-----------------|
+| 🔴 Critical | Bugs, logic errors, incorrect behavior, data loss risks |
+| 🔒 Security | Injection, auth bypass, secrets exposure, unsafe deserialization |
+| ⚡ Performance | N+1 queries, unnecessary re-renders, memory leaks, O(n²) when O(n) is possible |
+| 🐛 Bug | Null pointer risks, off-by-one errors, race conditions, unhandled errors |
+| ✨ Improvement | Clearer naming, better patterns, simpler logic, unnecessary complexity |
+| 🧪 Testing | Missing test cases, untested edge cases, weak assertions |
+| 📝 Documentation | Missing/incorrect JSDoc, misleading comments, unclear intent |
 
-### Categories
+4. **Trace dependencies** — use Grep/Glob to check callers, interfaces, and types affected by the change when relevant.
+5. **Check the PR description** — verify the code matches what the author says they changed.
 
-1. **Required Changes** — Explicit requests to change code. The reviewer points out a bug, security issue, logic error, or demands a specific change. Often found in `CHANGES_REQUESTED` reviews.
-2. **Suggestions** — Non-blocking improvements. The reviewer proposes an alternative approach, refactor, or enhancement but it's not mandatory. Often phrased as "you could...", "consider...", "what about...", "nit:".
-3. **Questions** — The reviewer is asking for clarification or context. These may need a reply rather than a code change.
-4. **Praise / Acknowledgements** — Positive feedback ("looks good", "nice!", "great work"). No action needed.
+### Review guidelines
 
-### Analyzing Each Comment
+- Focus on **substantive issues** — skip formatting nitpicks, trivial style preferences, and obvious code.
+- Every comment must be **actionable** — say what to change, not just what's wrong.
+- Include a **concrete code suggestion** when possible.
+- Be respectful and constructive. Assume the author is competent.
+- Don't comment on unchanged code unless a change introduces an issue with it.
+- For large PRs (20+ files), prioritize critical and security issues. Mention that a full review is recommended.
 
-For each actionable comment (categories 1-3), extract:
+## Step 4: Present Findings
 
-- **Reviewer**: who left the comment
-- **File & line**: `path:line` if it's an inline comment
-- **Original comment**: the reviewer's text (abbreviated if very long)
-- **What to do**: a short summary of the action needed
-- **Code context**: the `diff_hunk` snippet for inline comments (abbreviated)
+Display ALL findings sorted by severity (critical first), then by file order in the diff.
 
-## Step 4: Present Summary to User
+For each finding:
 
-Present the categorized comments in a structured format:
-
-```
-## PR #123 — Review Summary
-
-**Reviews**: 2 reviews (1 changes requested, 1 approved)
-
----
-
-### Required Changes (3)
-
-| # | File | Reviewer | What to do |
-|---|------|----------|------------|
-| 1 | src/utils/auth.ts:45 | @alice | Add null check before accessing `user.email` |
-| 2 | src/api/routes.ts:120 | @alice | Handle 404 case in the catch block |
-| 3 | src/types/index.ts:30 | @bob | Export `UserRole` type — it's used in other modules |
-
-### Suggestions (2)
-
-| # | File | Reviewer | What to do |
-|---|------|----------|------------|
-| 4 | src/utils/auth.ts:60 | @alice | Consider extracting token validation into a helper |
-| 5 | src/api/routes.ts:80 | @bob | Could use optional chaining instead of nested ifs |
-
-### Questions (1)
-
-| # | File | Reviewer | Question |
-|---|------|----------|----------|
-| 6 | src/api/routes.ts:95 | @bob | Why was the timeout increased to 30s? |
-
-### Praise
-- @bob: "Clean implementation of the auth flow!"
+```md
+### #N — [TAG] file/path.ts:L<line>
+**Issue**: [Clear, concise description of the problem]
+**Suggestion**: [Concrete fix or code change]
 ```
 
-Then ask the user:
+After presenting all findings:
 
-> **Which items do you want me to resolve?** Enter the numbers (e.g., "1, 2, 5"), "all" for all actionable items, "required" for only required changes, or "none" to skip.
+- Show a summary count: `Found X issues: N critical, N security, N bugs, N improvements...`
+- If no issues found, say so clearly.
 
-## Step 5: Resolve Selected Items
+Then ask:
 
-For each item the user selected:
+> **Ready to submit this review?** Enter "yes" to post all comments, "remove N,N" to drop specific items, or "edit N" to modify a comment before posting.
 
-1. **Read the target file** to understand the current code around the commented area.
-2. **Read the full comment thread** (including replies) to understand the full context of the discussion.
-3. **Apply the change** following the reviewer's feedback. Be minimal and precise — change only what the reviewer asked for.
-4. **Do NOT change unrelated code** around the comment. The reviewer approved that code by not commenting on it.
-5. For **Questions** (category 3): ask the user what the answer is, or suggest an answer based on the code context. If the question implies a code change, propose it.
+## Step 5: Submit the Review
 
-### Rules During Resolution
+Submit a single review using the GitHub API with event `COMMENT`:
 
-- Preserve existing code style, naming conventions, and formatting of the project.
-- Do not add unrelated improvements, refactors, or cleanups.
-- If a reviewer's suggestion is ambiguous, show the user the comment and your interpretation before making the change.
-- If a comment refers to code that has already been changed or no longer exists (outdated diff), inform the user and skip it.
-- If two comments conflict with each other, present both to the user and ask which to follow.
-
-## Step 6: Summary
-
-After resolving all selected items, present a summary:
-
-```
-## Review Resolution Complete
-
-### Resolved (4 items)
-- #1 src/utils/auth.ts:45 — Added null check for `user.email`
-- #2 src/api/routes.ts:120 — Added 404 handling in catch block
-- #3 src/types/index.ts:30 — Exported `UserRole` type
-- #5 src/api/routes.ts:80 — Replaced nested ifs with optional chaining
-
-### Skipped
-- #4 (not selected by user)
-- #6 Question — user will reply in PR
-
-### Files Modified
-- src/utils/auth.ts
-- src/api/routes.ts
-- src/types/index.ts
+```bash
+gh api repos/{owner}/{repo}/pulls/{number}/reviews --method POST --input /tmp/pr-review-payload.json
 ```
 
-Then suggest the user run their type checker and tests to verify nothing broke, and use `/commit` to commit the changes.
+Build the JSON payload with all comments. Each comment needs:
+- `path`: file path relative to repo root
+- `line`: the line number in the diff (use the **new file** line number for added/modified lines)
+- `side`: `"RIGHT"` for comments on the new version of the code
+- `body`: the review comment text with tag, issue description, and suggestion. Always append `\n\n---\n_[Generated by AI]_` at the end of every comment body
+
+### Building the review payload
+
+Construct a temporary JSON file with the review data:
+
+```json
+{
+  "event": "COMMENT",
+  "body": "Review summary — found N issues across M files.",
+  "comments": [
+    {
+      "path": "src/auth.ts",
+      "line": 45,
+      "side": "RIGHT",
+      "body": "🔴 **Critical**: Missing null check on `user` before accessing `.id`. This will throw if the query returns no results.\n\n**Suggestion**:\n```ts\nif (!user) {\n  throw new NotFoundError('User not found');\n}\n```\n\n---\n_[Generated by AI]_"
+    }
+  ]
+}
+```
+
+Submit with:
+```bash
+gh api repos/{owner}/{repo}/pulls/{number}/reviews --method POST --input /tmp/pr-review-payload.json
+```
+
+Clean up the temp file after submission.
+
+### Line number mapping
+
+- For comments on **added or modified lines**: use the line number from the new file (`+` side of the diff), set `side: "RIGHT"`.
+- For comments on **deleted lines**: use the line number from the old file (`-` side of the diff), set `side: "LEFT"`.
+- To find the correct line number, parse the diff hunk headers (`@@ -old_start,old_count +new_start,new_count @@`) and count lines from there.
+
+## Step 6: Confirmation
+
+After successful submission:
+
+```md
+## Review Submitted
+
+PR #<number> — <title>
+URL: <review URL>
+
+Posted <N> inline comments across <M> files.
+```
+
+If submission fails, show the error and suggest the user check their `gh` auth permissions.

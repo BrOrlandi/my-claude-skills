@@ -8,7 +8,7 @@ A personal collection of reusable Claude Code **skills** and **commands**, insta
 
 ## Repository Structure
 
-- **Top-level skill folders** (`refactor-components/`, `refactor-code/`, `pr-review/`): Custom skills authored in this repo. Each contains a `SKILL.md`.
+- **Top-level skill folders** (`refactor-components/`, `refactor-code/`, `pr-comments/`, `pr-review/`): Custom skills authored in this repo. Each contains a `SKILL.md`.
 - **`commands/`**: Custom slash commands (`.md` files) — `/commit`, `/pr`, `/sync-env-to-github`.
 - **`skills/`**: Git submodule pointing to [Anthropic's skills repo](https://github.com/anthropics/skills). Contains the `skill-creator` skill and many reference skills. This is a separate git repo — do not modify files inside it directly.
 - **`install.sh` / `uninstall.sh`**: Symlink management scripts that link skill folders and command files into `~/.claude/`.

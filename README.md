@@ -8,9 +8,12 @@ A collection of reusable [Claude Code](https://claude.ai/claude-code) skills and
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | **refactor-components** | Find large React components (.tsx/.jsx) and refactor them into smaller, focused components                              |
 | **refactor-code**       | Find large non-React code files (.ts/.js) and refactor them into smaller, focused files (routes, services, utils, etc.) |
-| **pr-review**           | Fetch PR review comments, analyze and categorize them, and resolve selected feedback items                              |
+| **pr-comments**         | Fetch PR review comments in sequential order, perform deep analysis with code context, suggest solutions, enter Plan mode for complex changes, and auto-resolve threads on GitHub |
+| **pr-review**           | Review a GitHub PR and submit a single review with inline comments identifying bugs, security vulnerabilities, performance issues, and suggesting improvements |
 | **todo-resolver**       | Find TODO/FIXME/HACK comments in the codebase, analyze their impact and complexity, and resolve them                    |
 | **pr-screenshots**      | Capture screenshots or GIF recordings of UI features, upload them losslessly to a dedicated GitHub orphan branch (`pr-assets`), and add a labeled Screenshots section to the current PR description. Images are served via `raw.githubusercontent.com` — no compression, opens inline (no forced download). Infers what to capture from conversation context, PR diff analysis, or user clarification. |
+| **security-review**     | Scan code for security vulnerabilities (hardcoded secrets, env var exposure, injection, auth issues), generate SECURITY.md guidelines, or verify compliance with existing security rules |
+| **slack**               | Send messages, upload files, read conversations, react to messages, and manage Slack workspaces using SlackCLI |
 | **skill-creator**       | Guide for creating effective skills that extend Claude's capabilities. From [Anthropic's skills repo](https://github.com/anthropics/skills/tree/main/skills/skill-creator) |
 
 ## Commands
