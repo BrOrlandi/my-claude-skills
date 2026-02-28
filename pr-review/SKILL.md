@@ -1,0 +1,159 @@
+---
+name: pr-review
+description: Review a GitHub Pull Request and submit a single review with inline code comments. Identifies bugs, security vulnerabilities, performance issues, logic errors, missing edge cases, and suggests improvements. Use when the user wants to review a PR, do a code review, or add review comments to a pull request.
+disable-model-invocation: true
+argument-hint: "[PR number]"
+---
+
+# PR Review
+
+Review a GitHub PR's diff and submit a single GitHub review with inline comments identifying bugs, performance issues, security concerns, and improvements.
+
+## Arguments
+
+- `$ARGUMENTS` (optional): The PR number to review. If not provided, detect the PR associated with the current branch.
+
+## Step 1: Identify the PR
+
+1. Get the repository:
+   ```
+   gh repo view --json nameWithOwner -q '.nameWithOwner'
+   ```
+2. If a PR number was provided in `$ARGUMENTS`, use it directly.
+3. If no PR number was provided, detect the PR for the current branch:
+   ```
+   gh pr list --head "$(git branch --show-current)" --json number,title,url --limit 1
+   ```
+4. If no PR is found, inform the user and stop.
+5. Fetch PR metadata:
+   ```
+   gh pr view <NUMBER> --json number,title,url,headRefName,baseRefName,author,body
+   ```
+6. Show the PR title and URL for confirmation before proceeding.
+
+## Step 2: Fetch the Diff and Changed Files
+
+1. Get the full diff:
+   ```
+   gh pr diff <NUMBER>
+   ```
+2. Get the list of changed files with line counts:
+   ```
+   gh pr view <NUMBER> --json files --jq '.files[] | "\(.path) +\(.additions) -\(.deletions)"'
+   ```
+
+## Step 3: Analyze Each Changed File
+
+For each changed file in the diff:
+
+1. **Read the full file** for context (not just the diff) using the Read tool.
+2. **Understand the purpose** of the changes from the diff hunks and surrounding code.
+3. **Review for issues** across these categories:
+
+| Tag | What to look for |
+|-----|-----------------|
+| 🔴 Critical | Bugs, logic errors, incorrect behavior, data loss risks |
+| 🔒 Security | Injection, auth bypass, secrets exposure, unsafe deserialization |
+| ⚡ Performance | N+1 queries, unnecessary re-renders, memory leaks, O(n²) when O(n) is possible |
+| 🐛 Bug | Null pointer risks, off-by-one errors, race conditions, unhandled errors |
+| ✨ Improvement | Clearer naming, better patterns, simpler logic, unnecessary complexity |
+| 🧪 Testing | Missing test cases, untested edge cases, weak assertions |
+| 📝 Documentation | Missing/incorrect JSDoc, misleading comments, unclear intent |
+
+4. **Trace dependencies** — use Grep/Glob to check callers, interfaces, and types affected by the change when relevant.
+5. **Check the PR description** — verify the code matches what the author says they changed.
+
+### Review guidelines
+
+- Focus on **substantive issues** — skip formatting nitpicks, trivial style preferences, and obvious code.
+- Every comment must be **actionable** — say what to change, not just what's wrong.
+- Include a **concrete code suggestion** when possible.
+- Be respectful and constructive. Assume the author is competent.
+- Don't comment on unchanged code unless a change introduces an issue with it.
+- For large PRs (20+ files), prioritize critical and security issues. Mention that a full review is recommended.
+
+## Step 4: Present Findings
+
+Display ALL findings sorted by severity (critical first), then by file order in the diff.
+
+For each finding:
+
+```
+### #N — [TAG] file/path.ts:L<line>
+**Issue**: [Clear, concise description of the problem]
+**Suggestion**: [Concrete fix or code change]
+```
+
+After presenting all findings:
+
+- Show a summary count: `Found X issues: N critical, N security, N bugs, N improvements...`
+- If no issues found, say so clearly.
+
+Then ask:
+
+> **Ready to submit this review?** Enter "yes" to post all comments, "remove N,N" to drop specific items, or "edit N" to modify a comment before posting.
+
+## Step 5: Submit the Review
+
+Submit a single review using the GitHub API with event `COMMENT`:
+
+```
+gh api repos/{owner}/{repo}/pulls/{number}/reviews \
+  --method POST \
+  -f event="COMMENT" \
+  -f body="<review summary>" \
+  --input review_payload.json
+```
+
+Build the JSON payload with all comments. Each comment needs:
+- `path`: file path relative to repo root
+- `line`: the line number in the diff (use the **new file** line number for added/modified lines)
+- `side`: `"RIGHT"` for comments on the new version of the code
+- `body`: the review comment text with tag, issue description, and suggestion
+
+### Building the review payload
+
+Construct a temporary JSON file with the review data:
+
+```json
+{
+  "event": "COMMENT",
+  "body": "Review summary — found N issues across M files.",
+  "comments": [
+    {
+      "path": "src/auth.ts",
+      "line": 45,
+      "side": "RIGHT",
+      "body": "🔴 **Critical**: Missing null check on `user` before accessing `.id`. This will throw if the query returns no results.\n\n**Suggestion**:\n```ts\nif (!user) {\n  throw new NotFoundError('User not found');\n}\n```"
+    }
+  ]
+}
+```
+
+Submit with:
+```
+gh api repos/{owner}/{repo}/pulls/{number}/reviews --method POST --input /tmp/pr-review-payload.json
+```
+
+Clean up the temp file after submission.
+
+### Line number mapping
+
+- For comments on **added or modified lines**: use the line number from the new file (`+` side of the diff), set `side: "RIGHT"`.
+- For comments on **deleted lines**: use the line number from the old file (`-` side of the diff), set `side: "LEFT"`.
+- To find the correct line number, parse the diff hunk headers (`@@ -old_start,old_count +new_start,new_count @@`) and count lines from there.
+
+## Step 6: Confirmation
+
+After successful submission:
+
+```
+## Review Submitted
+
+PR #<number> — <title>
+URL: <review URL>
+
+Posted <N> inline comments across <M> files.
+```
+
+If submission fails, show the error and suggest the user check their `gh` auth permissions.
