@@ -1,12 +1,12 @@
 ---
 name: slack
-description: Send messages, upload files, read conversations, react to messages, and manage Slack workspaces using SlackCLI. Use when the user wants to interact with Slack — send a message, share a file, read channel history, find a user, react to a message, or check workspace auth.
+description: Send messages, upload files and images, read conversations, react to messages, and manage Slack workspaces using SlackCLI. Use when the user wants to interact with Slack — send a message, share a file, upload images or screenshots, read channel history, find a user, react to a message, or check workspace auth.
 argument-hint: "[send|read|upload|find|react|auth] [message, file path, or target]"
 ---
 
 # Slack Skill
 
-You are a Slack automation assistant. You help users send messages, read conversations, upload files, react to messages, find users/channels, and manage workspace authentication — all through the `slackcli` CLI and `curl`.
+You are a Slack automation assistant. You help users send messages, read conversations, upload files and images, react to messages, find users/channels, and manage workspace authentication — all through the `slackcli` CLI and `curl`.
 
 ## Arguments
 
@@ -183,13 +183,23 @@ for u in data:
 
 Then find or open the DM conversation with that user ID.
 
-### 3.3 Ambiguous target
+### 3.3 Channel not found
+
+If a channel is not found in the list, it may be because:
+- The Slack app hasn't been added to that channel (especially private channels)
+- The channel name is slightly different
+
+In this case:
+1. Ask the user to provide the channel ID directly (they can find it in the channel's settings in Slack)
+2. Or ask them to add the Slack app to the channel first
+
+### 3.4 Ambiguous target
 
 If multiple matches are found, show them to the user and ask which one they mean.
 
-### 3.4 Direct ID
+### 3.5 Direct ID
 
-If the user provides a channel ID directly (starts with `C`, `D`, or `G`), use it as-is.
+If the user provides a channel ID directly (starts with `C`, `D`, or `G`), use it as-is. This is useful when channels don't appear in the list (e.g., private channels the app hasn't been added to).
 
 ## Step 4a: Send Message
 
@@ -197,7 +207,7 @@ If the user provides a channel ID directly (starts with `C`, `D`, or `G`), use i
 slackcli messages send --recipient-id <CHANNEL_ID> --message "<text>"
 ```
 
-For **multi-line messages**, use bash heredoc or `$'...'` syntax:
+For **multi-line messages**, use bash `$'...'` syntax:
 ```bash
 slackcli messages send --recipient-id <CHANNEL_ID> --message $'Line 1\nLine 2\nLine 3'
 ```
@@ -207,7 +217,38 @@ For **thread replies**, add `--thread-ts`:
 slackcli messages send --recipient-id <CHANNEL_ID> --message "<text>" --thread-ts "<timestamp>"
 ```
 
+### Capturing the message timestamp
+
+When sending a message that will later receive thread replies (e.g., file uploads in thread), capture the timestamp from the output:
+
+```bash
+MSG_OUTPUT=$(slackcli messages send --recipient-id <CHANNEL_ID> --message "<text>" 2>&1)
+MSG_TS=$(echo "$MSG_OUTPUT" | sed -n 's/.*Message timestamp: //p')
+```
+
+The `MSG_TS` value (e.g., `1772479430.645059`) is needed to send thread replies or upload files to the thread.
+
 **Important:** Always confirm the message content and recipient with the user before sending.
+
+### Sending a message with file attachments
+
+When the user wants to send a message along with images or files, follow this pattern:
+
+1. **Show the message** to the user for approval before sending
+2. **Ask where to put the files**: in the thread (recommended — keeps the channel clean) or directly in the channel
+3. **Send the text message** first and capture its timestamp
+4. **Upload files** to the thread using the captured timestamp (see Step 4c)
+
+This is the recommended flow for sharing screenshots, reports, or any files alongside a text message.
+
+### Test in DM first
+
+When the user is sending to a public/shared channel, **suggest sending to their own DM first** as a test. This lets them preview how the message and attachments will look before posting publicly. After confirmation, send to the actual channel.
+
+To find the user's own DM:
+```bash
+slackcli conversations list --types im | grep -i "<user_name>"
+```
 
 ## Step 4b: Read Conversation
 
@@ -238,58 +279,103 @@ File uploads use the new Slack API (3-step flow) via `curl`. The old `files.uplo
 
 ### Extract the token from slackcli config:
 
+The `workspaces.json` file uses a dict keyed by workspace ID. Extract the token like this:
+
 ```bash
 SLACK_TOKEN=$(python3 -c "
 import json, os
-config_path = os.path.expanduser('~/.config/slackcli/workspaces.json')
-with open(config_path) as f:
-    workspaces = json.load(f)
-# Use the first workspace, or filter by name if needed
-for ws in workspaces:
-    print(ws.get('token', ''))
+with open(os.path.expanduser('~/.config/slackcli/workspaces.json')) as f:
+    data = json.load(f)
+ws = data['workspaces']
+for k, v in ws.items():
+    print(v['token'])
     break
 ")
 ```
 
 If the user has **multiple workspaces**, filter by workspace name to get the correct token.
 
-### Step 1: Get upload URL
+### Upload a single file (3-step flow)
 
 ```bash
 FILE_PATH="<path_to_file>"
 FILE_NAME=$(basename "$FILE_PATH")
 FILE_SIZE=$(wc -c < "$FILE_PATH" | tr -d ' ')
+CHANNEL_ID="<target_channel_id>"
 
+# Step 1: Get upload URL
 UPLOAD_RESPONSE=$(curl -s -X POST "https://slack.com/api/files.getUploadURLExternal" \
   -H "Authorization: Bearer $SLACK_TOKEN" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "filename=$FILE_NAME" \
   --data-urlencode "length=$FILE_SIZE")
 
-echo "$UPLOAD_RESPONSE"
-```
+UPLOAD_URL=$(echo "$UPLOAD_RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('upload_url',''))")
+FILE_ID=$(echo "$UPLOAD_RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('file_id',''))")
 
-Extract `upload_url` and `file_id` from the JSON response.
+# Step 2: Upload the file content
+curl -s -X POST "$UPLOAD_URL" -F "file=@$FILE_PATH" > /dev/null
 
-### Step 2: Upload the file content
-
-```bash
-UPLOAD_URL="<extracted_upload_url>"
-
-curl -s -X POST "$UPLOAD_URL" \
-  -F "file=@$FILE_PATH"
-```
-
-### Step 3: Complete the upload
-
-```bash
-FILE_ID="<extracted_file_id>"
-CHANNEL_ID="<target_channel_id>"
-
+# Step 3: Complete the upload
 curl -s -X POST "https://slack.com/api/files.completeUploadExternal" \
   -H "Authorization: Bearer $SLACK_TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"files\": [{\"id\": \"$FILE_ID\", \"title\": \"$FILE_NAME\"}], \"channel_id\": \"$CHANNEL_ID\"}"
+  -d "{\"files\": [{\"id\": \"$FILE_ID\", \"title\": \"$TITLE\"}], \"channel_id\": \"$CHANNEL_ID\"}"
+```
+
+### Upload file to a thread
+
+To upload a file as a **thread reply** instead of a top-level message, add `thread_ts` to the Step 3 payload:
+
+```bash
+curl -s -X POST "https://slack.com/api/files.completeUploadExternal" \
+  -H "Authorization: Bearer $SLACK_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"files\": [{\"id\": \"$FILE_ID\", \"title\": \"$TITLE\"}], \"channel_id\": \"$CHANNEL_ID\", \"thread_ts\": \"$THREAD_TS\"}"
+```
+
+### Upload multiple files in a loop
+
+When uploading multiple files (e.g., screenshots), use a loop. Each file goes through the full 3-step flow individually:
+
+```bash
+FILES=(
+  "/path/to/file1.png|Title for file 1"
+  "/path/to/file2.png|Title for file 2"
+)
+
+for entry in "${FILES[@]}"; do
+  FILE_PATH="${entry%%|*}"
+  TITLE="${entry##*|}"
+  FILE_NAME=$(basename "$FILE_PATH")
+  FILE_SIZE=$(wc -c < "$FILE_PATH" | tr -d ' ')
+
+  # Step 1: Get upload URL
+  UPLOAD_RESPONSE=$(curl -s -X POST "https://slack.com/api/files.getUploadURLExternal" \
+    -H "Authorization: Bearer $SLACK_TOKEN" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    --data-urlencode "filename=$FILE_NAME" \
+    --data-urlencode "length=$FILE_SIZE")
+
+  UPLOAD_URL=$(echo "$UPLOAD_RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('upload_url',''))")
+  FILE_ID=$(echo "$UPLOAD_RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('file_id',''))")
+
+  # Step 2: Upload file content
+  curl -s -X POST "$UPLOAD_URL" -F "file=@$FILE_PATH" > /dev/null
+
+  # Step 3: Complete upload (with optional thread_ts)
+  COMPLETE_RESPONSE=$(curl -s -X POST "https://slack.com/api/files.completeUploadExternal" \
+    -H "Authorization: Bearer $SLACK_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"files\": [{\"id\": \"$FILE_ID\", \"title\": \"$TITLE\"}], \"channel_id\": \"$CHANNEL_ID\", \"thread_ts\": \"$THREAD_TS\"}")
+
+  OK=$(echo "$COMPLETE_RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ok', False))")
+  if [ "$OK" = "True" ]; then
+    echo "✅ Uploaded: $TITLE"
+  else
+    echo "❌ Failed: $COMPLETE_RESPONSE"
+  fi
+done
 ```
 
 After upload, show the file permalink from the response if available.
