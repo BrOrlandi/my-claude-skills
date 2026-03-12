@@ -1,3 +1,5 @@
 .claude
 **/config.json
 .playwright-mcp
+__pycache__/
+*.pyc
