@@ -164,8 +164,8 @@ SCREENSHOTS_PATTERN = re.compile(
 def build_screenshots_section(entries: list[tuple[str, str]]) -> str:
     """Build a ## Screenshots markdown section from a list of (label, url) pairs."""
     lines = ["## Screenshots", ""]
-    for label, url in entries:
-        lines.append(f"### {label}")
+    for i, (label, url) in enumerate(entries, start=1):
+        lines.append(f"### {i}. {label}")
         lines.append(f"![{label}]({url})")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"

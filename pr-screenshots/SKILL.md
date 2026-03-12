@@ -228,13 +228,13 @@ The skill adds the following section to the PR description:
 ```markdown
 ## Screenshots
 
-### <Label for screenshot 1>
+### 1. <Label for screenshot 1>
 ![<label>](<github.com blob url with ?raw=true>)
 
-### <Label for screenshot 1> – Mobile
+### 2. <Label for screenshot 1> – Mobile
 ![<label> – Mobile](<github.com blob url with ?raw=true>)
 
-### <Label for screenshot 2>
+### 3. <Label for screenshot 2>
 ![<label>](<github.com blob url with ?raw=true>)
 ```
 
