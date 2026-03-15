@@ -61,6 +61,31 @@ jira me
 jira issue list --plain --paginate 5
 ```
 
+## Assignee Suggestion
+
+When creating or assigning issues, proactively suggest the logged-in user as assignee. After running `jira me` to confirm setup, use the result to offer assignment without requiring the user to specify. For example, if the user asks to create tasks, ask if they want them assigned to themselves.
+
+To assign via REST API (the CLI `--no-input` flag is not supported on `jira issue move`):
+
+```bash
+JIRA_CONFIG="${JIRA_CONFIG_FILE:-$HOME/.config/.jira/.config.yml}"
+JIRA_URL=$(python3 -c "import yaml; print(yaml.safe_load(open('$JIRA_CONFIG'))['server'].rstrip('/'))")
+JIRA_EMAIL=$(python3 -c "import yaml; print(yaml.safe_load(open('$JIRA_CONFIG'))['login'])")
+
+# Get current user's account ID
+ACCOUNT_ID=$(curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/myself" | python3 -c "import sys,json; print(json.load(sys.stdin)['accountId'])")
+
+# Assign issue
+curl -s -X PUT -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -H "Content-Type: application/json" \
+  -d "{\"fields\":{\"assignee\":{\"accountId\":\"$ACCOUNT_ID\"}}}" \
+  "$JIRA_URL/rest/api/3/issue/ISSUE-KEY"
+```
+
+To assign to another user, search by name first:
+```bash
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/user/search?query=NAME"
+```
+
 ## Quick Reference
 
 ### View an issue
@@ -83,7 +108,19 @@ jira issue comment add ISSUE-KEY "Comment text" --no-input
 
 ### Move/transition an issue
 ```bash
-jira issue move ISSUE-KEY "In Progress" --no-input
+jira issue move ISSUE-KEY "In Progress"
+```
+
+**Note:** `jira issue move` does NOT support `--no-input`. If the CLI prompts interactively, use the REST API instead:
+
+```bash
+# First, get available transitions for the issue
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/issue/ISSUE-KEY/transitions"
+
+# Then transition using the transition ID
+curl -s -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"transition":{"id":"TRANSITION_ID"}}' \
+  "$JIRA_URL/rest/api/3/issue/ISSUE-KEY/transitions"
 ```
 
 ### Create an issue
