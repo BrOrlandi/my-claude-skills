@@ -35,5 +35,22 @@ if [ -d "$SCRIPT_DIR/commands" ]; then
   done
 fi
 
+# Remove third-party skill symlinks
+JSON_FILE="$SCRIPT_DIR/thirdparty-skills.json"
+
+if [ -f "$JSON_FILE" ]; then
+  count=$(python3 -c "import json; data=json.load(open('$JSON_FILE')); print(len(data))")
+
+  for i in $(seq 0 $((count - 1))); do
+    name=$(python3 -c "import json; data=json.load(open('$JSON_FILE')); print(data[$i]['name'])")
+    target="$SKILLS_DIR/$name"
+
+    if [ -L "$target" ]; then
+      rm "$target"
+      echo "Removed third-party skill: $target"
+    fi
+  done
+fi
+
 echo ""
 echo "Done! Symlinks removed."

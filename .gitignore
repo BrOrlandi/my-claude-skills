@@ -3,3 +3,4 @@
 .playwright-mcp
 __pycache__/
 *.pyc
+thirdparty/

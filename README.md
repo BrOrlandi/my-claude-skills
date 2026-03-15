@@ -16,6 +16,14 @@ A collection of reusable [Claude Code](https://claude.ai/claude-code) skills and
 | **slack**               | Send messages, upload files, read conversations, react to messages, and manage Slack workspaces using SlackCLI |
 | **skill-creator**       | Guide for creating effective skills that extend Claude's capabilities. From [Anthropic's skills repo](https://github.com/anthropics/skills/tree/main/skills/skill-creator) |
 
+## Third-Party Skills
+
+Curated skills from the community, cloned as independent repositories into `thirdparty/`. See [THIRDPARTY.md](THIRDPARTY.md) for instructions on adding new ones.
+
+| Skill                   | Description                                                        | Repository |
+| ----------------------- | ------------------------------------------------------------------ | ---------- |
+| **frontend-slides**     | Create animation-rich HTML presentations without design expertise  | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) |
+
 ## Commands
 
 | Command                 | Description                                                                                 |
@@ -31,10 +39,19 @@ Clone the repository and run the install script to symlink all skills and comman
 ```bash
 git clone https://github.com/BrOrlandi/my-claude-skills.git ~/Projects/my-claude-skills
 cd ~/Projects/my-claude-skills
-./install.sh
+./update-thirdparty.sh  # Clone all third-party skill repos
+./install.sh            # Symlink all skills and commands
 ```
 
 This creates symlinks in `~/.claude/skills/` and `~/.claude/commands/`, making everything available globally across all your projects.
+
+### Updating Third-Party Skills
+
+```bash
+./update-thirdparty.sh
+```
+
+This pulls the latest changes for all third-party skill repositories listed in `thirdparty-skills.json`.
 
 ## Uninstall
 

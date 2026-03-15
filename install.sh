@@ -69,5 +69,51 @@ if [ -d "$SCRIPT_DIR/commands" ]; then
   [ $cmds_already_installed -gt 0 ] && echo "All other commands already installed."
 fi
 
+# Install third-party skills
+JSON_FILE="$SCRIPT_DIR/thirdparty-skills.json"
+
+if [ -f "$JSON_FILE" ]; then
+  tp_already_installed=0
+  count=$(python3 -c "import json; data=json.load(open('$JSON_FILE')); print(len(data))")
+
+  for i in $(seq 0 $((count - 1))); do
+    name=$(python3 -c "import json; data=json.load(open('$JSON_FILE')); print(data[$i]['name'])")
+    path=$(python3 -c "import json; data=json.load(open('$JSON_FILE')); print(data[$i]['path'])")
+    skill_dir=$(python3 -c "import json; data=json.load(open('$JSON_FILE')); print(data[$i]['skill_dir'])")
+
+    if [ "$skill_dir" = "." ]; then
+      full_path="$SCRIPT_DIR/$path"
+    else
+      full_path="$SCRIPT_DIR/$path/$skill_dir"
+    fi
+
+    if [ ! -d "$full_path" ] || [ ! -f "$full_path/SKILL.md" ]; then
+      echo "Skipping third-party skill $name (not cloned yet, run ./update-thirdparty.sh)"
+      continue
+    fi
+
+    target="$SKILLS_DIR/$name"
+
+    # Ensure full_path ends with /
+    full_path="${full_path%/}/"
+
+    if [ -L "$target" ]; then
+      if [ "$(readlink "$target")" = "$full_path" ]; then
+        tp_already_installed=$((tp_already_installed + 1))
+        continue
+      fi
+      rm "$target"
+    elif [ -d "$target" ]; then
+      echo "Skipping $name (directory already exists, not a symlink)"
+      continue
+    fi
+
+    ln -s "$full_path" "$target"
+    echo -e "${GREEN}New Third-party Skill installed $name!${NC}"
+  done
+
+  [ $tp_already_installed -gt 0 ] && echo "All other third-party skills already installed."
+fi
+
 echo ""
 echo "Done! Skills and commands are now available globally in Claude Code."
