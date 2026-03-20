@@ -48,6 +48,7 @@ jira init
 ```
 
 This will prompt for:
+
 - **Installation type**: Cloud
 - **Jira server URL**: `https://YOUR-SITE.atlassian.net`
 - **Login email**: your Atlassian email
@@ -60,6 +61,24 @@ This will prompt for:
 jira me
 jira issue list --plain --paginate 5
 ```
+
+## Project Selection
+
+The skill stores the last used project in `.config.json` (gitignored). Before creating or listing issues, read this file to get the default project:
+
+```bash
+cat /Users/brunoorlandi/Projects/my-claude-skills/jira/.config.json
+```
+
+Use the `lastProject` value as the default `-p` flag. After successfully using a different project, update the file.
+
+## Creating Issues
+
+When creating issues, follow this process:
+
+1. **Draft first, create after approval.** Always present the full title and description to the user for review before creating the issue in Jira. Never create an issue without explicit user approval of the content.
+2. **Use default priority.** Do not set priority (let Jira use its default, typically Medium) unless the user explicitly specifies a priority level.
+3. After approval, create the issue via REST API with ADF description format.
 
 ## Assignee Suggestion
 
@@ -82,6 +101,7 @@ curl -s -X PUT -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -H "Content-Type: application/js
 ```
 
 To assign to another user, search by name first:
+
 ```bash
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/user/search?query=NAME"
 ```
@@ -89,12 +109,14 @@ curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/user/search?query
 ## Quick Reference
 
 ### View an issue
+
 ```bash
 jira issue view ISSUE-KEY
 jira issue view ISSUE-KEY --raw  # Full JSON with account IDs
 ```
 
 ### List issues
+
 ```bash
 jira issue list --plain --no-truncate
 jira issue list -s "In Progress" --plain
@@ -102,11 +124,13 @@ jira issue list -q "assignee = currentUser() AND status != Done" --plain
 ```
 
 ### Add a simple comment (no mention)
+
 ```bash
 jira issue comment add ISSUE-KEY "Comment text" --no-input
 ```
 
 ### Move/transition an issue
+
 ```bash
 jira issue move ISSUE-KEY "In Progress"
 ```
@@ -124,6 +148,7 @@ curl -s -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -H "Content-Type: application/j
 ```
 
 ### Create an issue
+
 ```bash
 jira issue create -tTask -s "Summary text" --no-input
 ```
@@ -135,12 +160,15 @@ The jira CLI does **not** support @mentions — text like `@Name` renders as pla
 ### Step-by-step process
 
 1. **Find the user's account ID** from the issue data:
+
 ```bash
 jira issue view ISSUE-KEY --raw
 ```
+
 Look for `accountId` in `creator`, `reporter`, `assignee`, or comment `author` fields.
 
 2. **Add comment with mention** using the bundled script:
+
 ```bash
 scripts/jira_comment_with_mention.sh ISSUE-KEY "ACCOUNT_ID" "Display Name" "Comment text"
 ```
@@ -150,6 +178,7 @@ Or use curl directly with ADF format — see `references/jira-rest-api.md` for t
 ### If the user is not on the issue
 
 Search for users via REST API:
+
 ```bash
 JIRA_CONFIG="${JIRA_CONFIG_FILE:-$HOME/.config/.jira/.config.yml}"
 JIRA_URL=$(python3 -c "import yaml; print(yaml.safe_load(open('$JIRA_CONFIG'))['server'].rstrip('/'))")
