@@ -150,14 +150,7 @@ After presenting all comments, ask:
 
 ## Step 6: Resolve Sequentially
 
-Before starting resolution, ask the user their preference for auto-resolving threads on GitHub:
-
-> **Thread resolution preference?**
-> - **auto** — Resolve threads automatically on GitHub after each fix
-> - **ask** — Ask me each time whether to resolve
-> - **never** — Don't resolve threads, I'll do it manually
-
-Then process comments **one by one** in PR order:
+Process comments **one by one** in PR order:
 
 1. **Show a recap** of the current comment (tag, file, reviewer, what was asked).
 2. **Propose the change** — show the specific edit you intend to make.
@@ -178,10 +171,7 @@ Then process comments **one by one** in PR order:
 
    In Plan mode: analyze the full scope, present the plan to the user, and only proceed after approval.
 
-5. **After applying each change**, based on the user's thread resolution preference:
-   - **auto**: Immediately resolve the thread on GitHub (see Step 7)
-   - **ask**: Ask "Resolve this thread on GitHub? (yes/no)"
-   - **never**: Move to the next comment
+5. **After applying each change**, immediately resolve the thread on GitHub (see Step 7).
 
 ## Step 7: Auto-Resolve Threads
 
