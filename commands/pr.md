@@ -41,7 +41,10 @@ Automate the creation of well-structured commits and pull requests by analyzing 
   - generate the PR in $1 mode
   - always consider `main` as the parent branch. compare changes from the current branch with the `main` branch
 
-### 4. Open Generated PR
+### 4. Link to Jira
+- After the PR is created, invoke the `jira-link` skill to offer linking the PR to a Jira task (if the repo belongs to a configured GitHub org with Jira integration).
+
+### 5. Open Generated PR
 - Run `gh pr view -w` to open the created PR on the browser
 
 ## Best Practices
