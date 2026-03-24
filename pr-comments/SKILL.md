@@ -11,7 +11,108 @@ You are a PR review assistant. Your job is to fetch all review comments from a G
 
 ## Arguments
 
-- `$ARGUMENTS` (optional): The PR number to analyze. If not provided, detect the PR associated with the current branch.
+- `$ARGUMENTS` (optional): The PR number to analyze, optionally prefixed with `full-auto`. If not provided, detect the PR associated with the current branch.
+  - Examples: `77`, `full-auto`, `full-auto 77`
+- **Mode detection**: If `$ARGUMENTS` contains `full-auto`, run in Full-Auto Mode (see below). Otherwise, run in normal interactive mode.
+
+## Full-Auto Mode
+
+When `$ARGUMENTS` contains `full-auto`, the skill runs autonomously without asking for confirmation on each comment. It processes all open comments, commits, pushes, resolves threads, comments on the PR, and then polls for new CodeRabbit reviews — repeating until there are no more open comments.
+
+**In full-auto mode, Steps 1–4 remain the same. Steps 5–8 are replaced by the phases below.**
+
+### Phase 1: Autonomous Processing (replaces Steps 5–6)
+
+Process each open comment **autonomously** using these decision criteria:
+
+| Decision                           | When to apply                                                                                                                                                                      |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fix automatically**              | Bugs, a11y issues, error handling, stale closures, missing validation, security issues, concrete improvements with clear intent                                                    |
+| **Decline**                        | Stylistic opinions, over-engineering suggestions, changes that conflict with CLAUDE.md conventions                                                                                 |
+| **Ask the user (AskUserQuestion)** | Ambiguous comments, business logic changes (pricing, permissions, workflows, domain validation, feature flags), architectural decisions with broad impact, unclear reviewer intent |
+
+For each comment:
+
+- **If fixing**: Apply the code change, then resolve the thread on GitHub (Step 7 mutation).
+- **If declining**: Reply on the thread explaining the reasoning, but do **not** resolve the thread (let the reviewer decide).
+- **If asking**: Wait for user confirmation via AskUserQuestion before proceeding. Apply only after approval.
+
+### Phase 2: Commit and Push
+
+After processing all comments in the current batch:
+
+1. Stage all modified files and create a commit with a descriptive message (e.g., `fix: address PR review comments (round N)`).
+2. Push to the remote branch.
+
+### Phase 3: Comment on the PR
+
+Post a summary comment on the PR mentioning the reviewer:
+
+```
+@coderabbitai[bot] Addressed review comments:
+
+**Fixed (N):**
+- file.ts:L — description of fix
+- file2.ts:L — description of fix
+
+**Declined (M):**
+- file3.ts:L — reason for declining
+
+Commit: abc1234
+```
+
+Use `gh pr comment <NUMBER> --body "..."` to post the comment.
+
+### Phase 4: Poll for New Review
+
+1. Launch the polling script in background:
+
+   ```bash
+   ~/.claude/skills/pr-comments/poll-pr-comments.sh {owner} {repo} {pr_number}
+   ```
+
+   Use `Bash` with `run_in_background: true`.
+
+2. Wait for the result using `TaskOutput` with `timeout: 600000` (10 minutes).
+
+3. Parse the output:
+   - **`NEW_COMMENTS:<count>`** — New open threads found. Go back to **Step 2: Fetch Review Comments** and repeat from Phase 1.
+   - **`ALL_CLEAR`** — CodeRabbit finished with no new comments. Proceed to Phase 5.
+   - **`TIMEOUT`** — Polling timed out. Inform the user and stop.
+
+### Phase 5: Final Summary
+
+Present a complete summary across **all rounds**:
+
+```md
+## PR #123 — Full-Auto Resolution Summary
+
+### Round 1
+
+| #   | Tag | File           | Action                         | Thread      |
+| --- | --- | -------------- | ------------------------------ | ----------- |
+| 1   | 🔴  | src/auth.ts:45 | Fixed: added null check        | ✅ Resolved |
+| 2   | 🟡  | src/api.ts:80  | Declined: stylistic preference | ⏳ Open     |
+
+Commit: abc1234
+
+### Round 2
+
+| #   | Tag | File           | Action                        | Thread      |
+| --- | --- | -------------- | ----------------------------- | ----------- |
+| 3   | ✨  | src/auth.ts:50 | Fixed: improved error message | ✅ Resolved |
+
+Commit: def5678
+
+### Totals
+
+- **Fixed**: N comments across M rounds
+- **Declined**: N comments
+- **Asked user**: N comments
+- **Files modified**: list of files
+```
+
+---
 
 ## Step 1: Identify the PR
 
@@ -35,6 +136,7 @@ You are a PR review assistant. Your job is to fetch all review comments from a G
 Collect all review feedback automatically — never ask the user before fetching.
 
 1. **Review threads with resolution status** (via GraphQL — preferred source for inline comments):
+
    ```graphql
    gh api graphql -f query='
      query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
@@ -63,12 +165,15 @@ Collect all review feedback automatically — never ask the user before fetching
        }
      }' -f owner='{owner}' -f repo='{repo}' -F number={number}
    ```
+
    This returns review threads with `id` (needed for resolving), `isResolved`, `isOutdated`, `path`, `line`, and all comments in each thread. Paginate using `pageInfo.hasNextPage` and `endCursor` if needed.
 
 2. **Review summaries** (top-level review bodies):
+
    ```bash
    gh api repos/{owner}/{repo}/pulls/{number}/reviews --paginate
    ```
+
    This returns reviews with `body`, `state` (APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED), and `user.login`.
 
 3. **PR conversation comments** (general discussion, not tied to code):
@@ -91,19 +196,19 @@ Unify all comment sources (GraphQL threads, REST reviews, PR conversation commen
 
 For each comment, assign **one** inline category tag based on its content:
 
-| Tag | Meaning |
-|-----|---------|
-| 🔴 Critical | Bugs, security issues, logic errors — must fix |
-| 🟡 Minor | Nitpicks, style preferences, non-blocking suggestions |
-| 🔒 Security | Security-specific concerns (auth, injection, secrets) |
-| ♿ Accessibility | Accessibility improvements (a11y, ARIA, contrast) |
-| 🐛 Bug | Explicit bug reports in the code |
-| ✨ Improvement | Refactor suggestions, better patterns, enhancements |
-| ❓ Question | Clarification requests — may need a reply, not a code change |
-| 👍 Praise | Positive feedback — no action needed |
-| ⚡ Performance | Performance concerns (N+1 queries, unnecessary renders, etc.) |
-| 🧪 Testing | Missing tests, test improvements, coverage concerns |
-| 📝 Documentation | Missing or incorrect docs, JSDoc, README updates |
+| Tag              | Meaning                                                       |
+| ---------------- | ------------------------------------------------------------- |
+| 🔴 Critical      | Bugs, security issues, logic errors — must fix                |
+| 🟡 Minor         | Nitpicks, style preferences, non-blocking suggestions         |
+| 🔒 Security      | Security-specific concerns (auth, injection, secrets)         |
+| ♿ Accessibility | Accessibility improvements (a11y, ARIA, contrast)             |
+| 🐛 Bug           | Explicit bug reports in the code                              |
+| ✨ Improvement   | Refactor suggestions, better patterns, enhancements           |
+| ❓ Question      | Clarification requests — may need a reply, not a code change  |
+| 👍 Praise        | Positive feedback — no action needed                          |
+| ⚡ Performance   | Performance concerns (N+1 queries, unnecessary renders, etc.) |
+| 🧪 Testing       | Missing tests, test improvements, coverage concerns           |
+| 📝 Documentation | Missing or incorrect docs, JSDoc, README updates              |
 
 Each comment carries its tag inline rather than being grouped into separate sections.
 
@@ -128,6 +233,7 @@ Display ALL comments in **sequential PR order** (not grouped by category). For e
 
 ```md
 ### #N — [TAG] file/path.ts:line
+
 **Reviewer**: @username
 **Comment**: [reviewer's text, abbreviated if very long]
 
@@ -135,11 +241,13 @@ Display ALL comments in **sequential PR order** (not grouped by category). For e
 **Suggested Fix**: [Concrete code change or action to take]
 **Impact**: [Other files/functions affected]
 **Alternatives**:
+
 1. [Option A] — pros / cons
 2. [Option B] — pros / cons
 ```
 
 For 👍 Praise comments, show a single-line entry:
+
 ```md
 ### #N — 👍 file/path.ts:line — @username: "Nice work!"
 ```
@@ -203,19 +311,21 @@ After resolving all selected items, present a summary table:
 ```md
 ## PR #123 — Resolution Summary
 
-| # | Tag | File | Action Taken | Thread |
-|---|-----|------|-------------|--------|
-| 1 | 🔴 | src/auth.ts:45 | Added null check | ✅ Resolved |
-| 2 | 🟡 | src/api.ts:80 | Used optional chaining | ✅ Resolved |
-| 3 | ❓ | src/api.ts:95 | Replied with explanation | ⏳ Open |
-| 4 | 👍 | src/auth.ts:60 | — | — |
-| 5 | ✨ | src/utils.ts:30 | Skipped by user | ⏳ Open |
+| #   | Tag | File            | Action Taken             | Thread      |
+| --- | --- | --------------- | ------------------------ | ----------- |
+| 1   | 🔴  | src/auth.ts:45  | Added null check         | ✅ Resolved |
+| 2   | 🟡  | src/api.ts:80   | Used optional chaining   | ✅ Resolved |
+| 3   | ❓  | src/api.ts:95   | Replied with explanation | ⏳ Open     |
+| 4   | 👍  | src/auth.ts:60  | —                        | —           |
+| 5   | ✨  | src/utils.ts:30 | Skipped by user          | ⏳ Open     |
 
 ### Files Modified
+
 - src/auth.ts
 - src/api.ts
 
 ### Next Steps
+
 - Run your type checker and tests to verify nothing broke
 - Use `/commit` to commit the changes
 ```
