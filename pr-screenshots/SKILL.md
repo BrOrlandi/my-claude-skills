@@ -265,8 +265,8 @@ Then inject it via `browser_evaluate` by wrapping the script contents and callin
   return spotlight({
     selector: '<selector>',
     annotationText: '<annotation text>',
-    margin: 16,
-    borderRadius: 12,
+    margin: 24,
+    borderRadius: 8,
     overlayOpacity: 0.6,
     position: 'auto'
   });
