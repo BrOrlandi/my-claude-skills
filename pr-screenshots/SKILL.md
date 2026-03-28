@@ -190,16 +190,17 @@ Parse the `argument` to detect mode:
 - If `argument` contains `gif` → **GIF mode**
 - Otherwise → **Screenshot mode** (default)
 
-### 5b. Ask about mobile experience
+### 5b. Determine mobile captures
 
-Before starting captures, always ask the user:
+**Default: desktop only.** Do NOT ask the user whether they want mobile screenshots — this avoids ambiguity when the user confirms the capture list with "yes" or "ok".
 
-> "Would you like to also capture **mobile screenshots** (simulating a phone browser at 390×844)? This is great for documenting responsive layouts and mobile-specific UI changes."
+Instead, when presenting the capture plan (Step 3b), include a brief note:
+> "Tip: you can also request **mobile screenshots** (390×844) by mentioning 'mobile' at any point."
 
-Wait for the user's confirmation. Possible responses:
-- **Yes / mobile / both** → capture desktop screenshots first, then mobile screenshots for each item.
-- **Only mobile** → skip desktop, capture only in mobile mode.
-- **No / desktop only** → capture desktop only (default).
+Only capture mobile screenshots if the user **explicitly** mentions it (e.g. "also mobile", "include mobile", "mobile too", "mobile screenshots"). Possible modes:
+- **User mentions "mobile" + desktop context** → capture desktop first, then mobile for each item.
+- **User says "only mobile"** → skip desktop, capture only in mobile mode.
+- **No mention of mobile** → capture desktop only (default).
 
 Store the result as `capture_modes` (e.g. `["desktop"]`, `["mobile"]`, or `["desktop", "mobile"]`).
 
