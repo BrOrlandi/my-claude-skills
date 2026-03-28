@@ -17,8 +17,8 @@ function spotlight(config) {
   const {
     selector,
     annotationText = '',
-    margin = 16,
-    borderRadius = 12,
+    margin = 24,
+    borderRadius = 8,
     overlayOpacity = 0.6,
     position = 'auto',
   } = config;
@@ -74,48 +74,23 @@ function spotlight(config) {
     pointerEvents: 'none',
   });
 
-  // --- Dark overlay using four bands around the cutout ---
-  // This avoids clip-path compatibility issues and creates a true transparent cutout.
-  const overlayColor = `rgba(0, 0, 0, ${overlayOpacity})`;
-  const bands = [
-    // Top band: full width, from top of viewport to top of cutout
-    { top: 0, left: 0, width: viewportWidth, height: cutTop },
-    // Bottom band: full width, from bottom of cutout to bottom of viewport
-    { top: cutBottom, left: 0, width: viewportWidth, height: viewportHeight - cutBottom },
-    // Left band: between top and bottom bands, from left edge to cutout left
-    { top: cutTop, left: 0, width: cutLeft, height: cutHeight },
-    // Right band: between top and bottom bands, from cutout right to right edge
-    { top: cutTop, left: cutRight, width: viewportWidth - cutRight, height: cutHeight },
-  ];
-
-  bands.forEach((band, i) => {
-    const bandEl = document.createElement('div');
-    bandEl.setAttribute('data-spotlight', `overlay-${i}`);
-    Object.assign(bandEl.style, {
-      position: 'absolute',
-      top: `${band.top}px`,
-      left: `${band.left}px`,
-      width: `${band.width}px`,
-      height: `${band.height}px`,
-      background: overlayColor,
-    });
-    root.appendChild(bandEl);
-  });
-
-  // --- Spotlight ring (rounded border) ---
-  const ring = document.createElement('div');
-  ring.setAttribute('data-spotlight', 'ring');
-  Object.assign(ring.style, {
+  // --- Overlay + rounded cutout using a single div with massive box-shadow ---
+  // A huge box-shadow spread (9999px) covers the entire viewport while the div
+  // itself acts as the transparent cutout with border-radius. This avoids the
+  // corner gap issue that occurs with four rectangular overlay bands.
+  const spotlight = document.createElement('div');
+  spotlight.setAttribute('data-spotlight', 'overlay');
+  Object.assign(spotlight.style, {
     position: 'absolute',
     top: `${cutTop}px`,
     left: `${cutLeft}px`,
     width: `${cutWidth}px`,
     height: `${cutHeight}px`,
     borderRadius: `${borderRadius}px`,
-    boxShadow: '0 0 0 3px rgba(255, 255, 255, 0.9), 0 0 20px 4px rgba(255, 255, 255, 0.15)',
+    boxShadow: `0 0 0 9999px rgba(0, 0, 0, ${overlayOpacity}), 0 0 0 3px rgba(255, 255, 255, 0.9), 0 0 20px 4px rgba(255, 255, 255, 0.15)`,
     pointerEvents: 'none',
   });
-  root.appendChild(ring);
+  root.appendChild(spotlight);
 
   // --- Annotation box ---
   let resolvedPlacement = null;
@@ -147,7 +122,7 @@ function spotlight(config) {
       background: 'rgba(20, 20, 20, 0.92)',
       color: '#ffffff',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-      fontSize: '14px',
+      fontSize: '18px',
       lineHeight: '1.5',
       borderRadius: '10px',
       border: '1px solid rgba(255, 255, 255, 0.15)',
@@ -228,10 +203,10 @@ function spotlight(config) {
 
     annotation.appendChild(arrow);
 
-    // Annotation text content
+    // Annotation text content (supports HTML for <b> bold terms)
     const textEl = document.createElement('div');
     textEl.setAttribute('data-spotlight', 'text');
-    textEl.textContent = annotationText;
+    textEl.innerHTML = annotationText;
     annotation.appendChild(textEl);
 
     root.appendChild(annotation);

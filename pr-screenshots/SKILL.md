@@ -94,7 +94,9 @@ For each item in the capture list, determine a CSS selector for the target compo
 For each item in the capture list, draft a short annotation (1-2 sentences) explaining what changed, based on the PR diff:
 
 - Read the relevant diff hunks for the affected component/file.
-- Summarize the visible change concisely (e.g. "Added inline validation errors below each form field" or "New empty state illustration when no data is available").
+- Summarize the visible change concisely, written for a **non-technical audience** — describe what the user sees, not code internals.
+- Use `<b>` HTML tags to highlight important visual terms (component names as the user sees them, not code names). For example: `"Novo <b>stepper de 4 etapas</b> para o fluxo de envio"` or `"Adicionadas <b>mensagens de erro</b> abaixo de cada campo do <b>formulário</b>"`.
+- The annotation text supports HTML and is rendered via `innerHTML` in the spotlight script.
 
 Present all annotations to the user:
 > "Here are the proposed annotations for each screenshot: [list]. Would you like to adjust any?"
