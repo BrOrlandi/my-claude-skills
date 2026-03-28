@@ -114,7 +114,7 @@ If any items need state forcing or data simulation, present the plan to the user
 ---
 
 The output of Step 3 should be a structured capture list:
-```
+```text
 {label, url, selector, annotationText, needsTemporarySelector, needsStateForcing, stateDescription, needsDataSimulation, dataDescription}
 ```
 
@@ -287,7 +287,7 @@ Check the return value:
 ### 6d. Take screenshot
 
 **Screenshot mode:**
-```
+```text
 browser_take_screenshot → filename: /tmp/pr-screenshot-{n}.png
 ```
 For mobile captures, use: `/tmp/pr-screenshot-{n}-mobile.png`
@@ -361,8 +361,8 @@ git stash pop
 ```
 
 If `git stash pop` fails due to conflicts:
-1. Run `git stash drop` to remove the stash entry.
-2. Warn the user: "Your pre-existing changes could not be auto-restored due to conflicts. They are still available — run `git stash apply stash@{0}` to manually restore them."
+1. **Do not** drop the stash entry — keep it available for manual recovery.
+2. Warn the user: "Your pre-existing changes could not be auto-restored due to conflicts. They are still in the stash — run `git stash show -p` to see them, then manually apply with `git stash apply` after resolving conflicts."
 
 ### 7c. Verify clean state
 
