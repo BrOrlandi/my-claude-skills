@@ -4,19 +4,22 @@ A collection of reusable [Claude Code](https://claude.ai/claude-code) skills and
 
 ## Skills
 
-| Skill                   | Description                                                                                                             |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| **refactor-components** | Find large React components (.tsx/.jsx) and refactor them into smaller, focused components                              |
-| **refactor-code**       | Find large non-React code files (.ts/.js) and refactor them into smaller, focused files (routes, services, utils, etc.) |
-| **jira**                | Interact with Jira using the jira CLI and REST API. View, create, list, transition, and comment on issues with proper @mentions |
-| **jira-link**           | Link GitHub PRs to Jira tasks bidirectionally. Adds Jira issue key to PR title and PR URL as remote link on Jira issue. Auto-triggered after `/pr` for configured orgs |
-| **pr-comments**         | Fetch PR review comments, perform deep analysis with code context, suggest solutions, auto-resolve threads on GitHub. Supports a full-auto mode that autonomously processes comments, commits, pushes, and polls for new CodeRabbit reviews in a loop |
-| **pr-review**           | Review a GitHub PR and submit a single review with inline comments identifying bugs, security vulnerabilities, performance issues, and suggesting improvements |
-| **todo-resolver**       | Find TODO/FIXME/HACK comments in the codebase, analyze their impact and complexity, and resolve them                    |
-| **pr-screenshots**      | Capture screenshots or GIF recordings of UI features, upload them losslessly to a dedicated GitHub orphan branch (`pr-assets`), and add a labeled Screenshots section to the current PR description. Images are served via `raw.githubusercontent.com` — no compression, opens inline (no forced download). Infers what to capture from conversation context, PR diff analysis, or user clarification. |
-| **security-review**     | Scan code for security vulnerabilities (hardcoded secrets, env var exposure, injection, auth issues), generate SECURITY.md guidelines, or verify compliance with existing security rules |
-| **slack**               | Send messages, upload files, read conversations, react to messages, and manage Slack workspaces using SlackCLI |
-| **skill-creator**       | Guide for creating effective skills that extend Claude's capabilities. From [Anthropic's skills repo](https://github.com/anthropics/skills/tree/main/skills/skill-creator) |
+| Skill                   | Description                                                                                                             | Invocation |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------- |
+| **refactor-components** | Find large React components (.tsx/.jsx) and refactor them into smaller, focused components                              | Explicit only |
+| **refactor-code**       | Find large non-React code files (.ts/.js) and refactor them into smaller, focused files (routes, services, utils, etc.) | Explicit only |
+| **jira**                | Interact with Jira using the jira CLI and REST API. View, create, list, transition, and comment on issues with proper @mentions | Autonomous |
+| **jira-link**           | Link GitHub PRs to Jira tasks bidirectionally. Adds Jira issue key to PR title and PR URL as remote link on Jira issue. Auto-triggered after `/pr` for configured orgs | Autonomous |
+| **pr-comments**         | Fetch PR review comments, perform deep analysis with code context, suggest solutions, auto-resolve threads on GitHub. Supports a full-auto mode that autonomously processes comments, commits, pushes, and polls for new CodeRabbit reviews in a loop | Explicit only |
+| **pr-review**           | Review a GitHub PR and submit a single review with inline comments identifying bugs, security vulnerabilities, performance issues, and suggesting improvements | Explicit only |
+| **todo-resolver**       | Find TODO/FIXME/HACK comments in the codebase, analyze their impact and complexity, and resolve them                    | Autonomous |
+| **pr-screenshots**      | Capture screenshots or GIF recordings of UI features, upload them losslessly to a dedicated GitHub orphan branch (`pr-assets`), and add a labeled Screenshots section to the current PR description. Images are served via `raw.githubusercontent.com` — no compression, opens inline (no forced download). Infers what to capture from conversation context, PR diff analysis, or user clarification. | Explicit only |
+| **security-review**     | Scan code for security vulnerabilities (hardcoded secrets, env var exposure, injection, auth issues), generate SECURITY.md guidelines, or verify compliance with existing security rules | Autonomous |
+| **slack**               | Send messages, upload files, read conversations, react to messages, and manage Slack workspaces using SlackCLI | Autonomous |
+| **skill-creator**       | Guide for creating effective skills that extend Claude's capabilities. From [Anthropic's skills repo](https://github.com/anthropics/skills/tree/main/skills/skill-creator) | Autonomous |
+
+- **Autonomous**: Claude can activate the skill on its own when it detects a relevant context (e.g., linking a PR to Jira after creating it).
+- **Explicit only**: The skill only runs when you invoke it directly (e.g., `/pr-review 123`). Claude will not trigger it autonomously.
 
 ## Third-Party Skills
 

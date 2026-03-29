@@ -5,5 +5,12 @@
     "path": "thirdparty/frontend-slides",
     "skill_dir": ".",
     "description": "Create animation-rich HTML presentations without design expertise"
+  },
+  {
+    "name": "skill-creator",
+    "repo": "https://github.com/anthropics/skills.git",
+    "path": "thirdparty/anthropic-skills",
+    "skill_dir": "skills/skill-creator",
+    "description": "Guide for creating effective skills that extend Claude's capabilities"
   }
 ]
