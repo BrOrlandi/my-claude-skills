@@ -1,6 +1,6 @@
 ---
 name: jira
-description: Interact with Jira using the jira CLI and REST API. View, create, list, transition, and comment on issues. Supports proper @mentions that notify users. Use when the user wants to work with Jira issues — view a ticket, add a comment, mention someone, list issues, create tasks, move issues between statuses, or assign issues.
+description: Interact with Jira using the jira CLI and REST API. View, create, list, transition, and comment on issues. Supports proper @mentions that notify users. Query activity reports showing who did what (created, edited, commented, moved issues, etc.) over a time period. Use when the user wants to work with Jira issues — view a ticket, add a comment, mention someone, list issues, create tasks, move issues between statuses, assign issues, or check recent activity/what was done.
 ---
 
 # Jira
@@ -186,6 +186,54 @@ JIRA_EMAIL=$(python3 -c "import yaml; print(yaml.safe_load(open('$JIRA_CONFIG'))
 
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/user/search?query=NAME"
 ```
+
+## Activity Report
+
+To see all activities performed on Jira issues over a time period, use the bundled script:
+
+```bash
+scripts/jira_activity_report.sh [DAYS] [PROJECT]
+```
+
+- `DAYS` — Number of days to look back (default: 3)
+- `PROJECT` — Jira project key to filter (optional, searches all projects if omitted)
+
+**Examples:**
+
+```bash
+# All activities in the last 3 days across all projects
+scripts/jira_activity_report.sh
+
+# Last 7 days, only project BE
+scripts/jira_activity_report.sh 7 BE
+
+# Today only
+scripts/jira_activity_report.sh 1
+```
+
+The script uses the REST API v3 (`/rest/api/3/search/jql` POST endpoint + `/rest/api/3/issue/{key}/changelog`) to fetch issues updated in the period, then collects changelogs in parallel. It detects and reports these activity types:
+
+- **Issue creation** — who created, issue type
+- **Status changes** — kanban column moves (e.g. Backlog -> In Progress -> Done)
+- **Assignee changes** — who reassigned to whom
+- **Title/description edits** — content modifications
+- **Priority changes**
+- **Sprint changes** — moved between sprints
+- **Label changes**
+- **Board reordering** — Rank changes
+- **Resolution changes**
+- **Attachments and links** — files and remote links (e.g. PRs)
+- **Parent/component changes**
+- **Comments** — with text preview (first 80 chars)
+- **Due date and story point changes**
+
+Output is grouped by user, with a summary count of each action type and chronological detail.
+
+**Important API notes:**
+- The old `/rest/api/3/search` GET endpoint has been removed. Always use `POST /rest/api/3/search/jql` with JSON body.
+- Pagination uses `nextPageToken` / `isLast` fields (not `startAt`).
+- Changelogs are fetched per-issue via `GET /rest/api/3/issue/{key}/changelog`.
+- Datetime strings from Jira may use offset format without colon (e.g. `-0300` instead of `-03:00`). The script handles both.
 
 ## Important Notes
 
