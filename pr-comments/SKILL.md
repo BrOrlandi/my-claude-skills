@@ -1,7 +1,7 @@
 ---
 name: pr-comments
 description: Fetch PR review comments in sequential order, perform deep analysis with code context and impact assessment, suggest concrete solutions with alternatives, enter Plan mode for complex changes, and auto-resolve threads on GitHub.
-disable-model-invocation: true
+disable-model-invocation: false
 argument-hint: "[PR number]"
 ---
 

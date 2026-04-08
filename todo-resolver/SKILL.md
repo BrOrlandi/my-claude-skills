@@ -1,7 +1,7 @@
 ---
 name: todo-resolver
 description: Find TODO comments in the codebase, analyze their impact and complexity, and optionally implement the changes to resolve them. Use when the user wants to find, triage, or resolve TODO/FIXME/HACK comments.
-disable-model-invocation: false
+disable-model-invocation: true
 argument-hint: "[path] [--include-fixme] [--include-hack]"
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: pr-review
 description: Review a GitHub Pull Request and submit a single review with inline code comments. Identifies bugs, security vulnerabilities, performance issues, logic errors, missing edge cases, and suggests improvements. Use when the user wants to review a PR, do a code review, or add review comments to a pull request.
-disable-model-invocation: true
+disable-model-invocation: false
 argument-hint: "[PR number]"
 ---
 
