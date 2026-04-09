@@ -29,13 +29,13 @@ Process each open comment **autonomously** using these decision criteria:
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Fix automatically**              | Bugs, a11y issues, error handling, stale closures, missing validation, security issues, concrete improvements with clear intent                                                    |
 | **Decline**                        | Stylistic opinions, over-engineering suggestions, changes that conflict with CLAUDE.md conventions                                                                                 |
-| **Ask the user (AskUserQuestion)** | Ambiguous comments, business logic changes (pricing, permissions, workflows, domain validation, feature flags), architectural decisions with broad impact, unclear reviewer intent |
+| **Ask the user (AskUserQuestion)** | Ambiguous comments, business logic changes (pricing, permissions, workflows, domain validation, feature flags), architectural decisions with broad impact, unclear reviewer intent, any comment where the "correct" behavior depends on domain knowledge or could be interpreted multiple ways |
 
 For each comment:
 
-- **If fixing**: Apply the code change, then resolve the thread on GitHub (Step 7 mutation).
+- **If fixing**: Apply the code change. Do NOT resolve the thread yet — resolution happens after commit+push in Phase 2.
 - **If declining**: Reply on the thread explaining the reasoning, but do **not** resolve the thread (let the reviewer decide).
-- **If asking**: Wait for user confirmation via AskUserQuestion before proceeding. Apply only after approval.
+- **If asking**: Present what the reviewer said, what the code does, and why it's ambiguous. Wait for user confirmation via AskUserQuestion before proceeding. Never guess business rules — ask first. Apply only after approval.
 
 ### Phase 2: Commit and Push
 
@@ -225,7 +225,13 @@ For each actionable comment (everything except 👍 Praise), perform deep analys
 4. **Assess impact** — what other files, functions, or modules would be affected by the change? Use Grep/Glob to trace dependencies if needed.
 5. **Suggest a concrete solution** if the reviewer didn't propose one. If the reviewer did suggest a fix, evaluate it and refine if needed.
 6. **List 2-3 alternatives** with brief pros/cons when the fix isn't obvious.
-7. **Business Logic Awareness** — if the change touches business rules (pricing, permissions, workflows, validation logic, feature flags), flag it clearly and alert the user before proposing any modification. Business logic changes require explicit user confirmation even if the reviewer requested them.
+7. **Ambiguity Detection** — evaluate whether the comment or the code it references contains ambiguity in business rules. Ask yourself:
+   - Is the expected behavior clearly defined, or could it be interpreted in more than one way?
+   - Does the reviewer assume a business rule that isn't explicitly documented in the code?
+   - Could applying this fix change business behavior in a way that isn't obvious?
+   - Is there a contradiction between what the code does, what the comment says, and what the business rule should be?
+   If any of these are true, mark the comment as **⚠️ Ambiguous — needs user validation** in your analysis. Do NOT propose a fix yet — this will be validated with the user in the triage step.
+8. **Business Logic Awareness** — if the change touches business rules (pricing, permissions, workflows, validation logic, feature flags), flag it clearly and alert the user before proposing any modification. Business logic changes require explicit user confirmation even if the reviewer requested them.
 
 ## Step 5: Present Comments
 
@@ -252,24 +258,57 @@ For 👍 Praise comments, show a single-line entry:
 ### #N — 👍 file/path.ts:line — @username: "Nice work!"
 ```
 
-After presenting all comments, ask:
+After presenting all comments, proceed to the triage step.
 
-> **Ready to start resolving? I'll go through each one sequentially.** Enter "yes" to begin, "skip N,N,N" to skip specific items, or "only N,N,N" to resolve only specific items.
+## Step 5.5: Point-by-Point Triage with the User
+
+Before resolving anything, walk through the comments **one by one** with the user to validate understanding and alignment — especially for comments flagged as ambiguous or touching business logic.
+
+1. **Group comments into two buckets:**
+   - **Straightforward** — clear bug fixes, typos, missing null checks, style issues where the intent is unambiguous.
+   - **Needs validation** — anything flagged as ⚠️ Ambiguous in Step 4, business logic changes, comments where the reviewer's intent could be interpreted multiple ways, or where the "correct" behavior depends on domain knowledge you don't have.
+
+2. **Present a triage summary** to the user using AskUserQuestion:
+
+   > I found **N** open comments. Here's my assessment:
+   >
+   > **Can resolve directly (N):**
+   > - #1 — 🔴 src/auth.ts:45 — null check missing (clear fix)
+   > - #3 — 🟡 src/api.ts:12 — style nit (optional chaining)
+   >
+   > **Need your input first (M):**
+   > - #2 — ⚠️ src/pricing.ts:80 — reviewer says discount should cap at 30%, but code allows 50%. Which is correct?
+   > - #4 — ⚠️ src/permissions.ts:22 — ambiguous: should admins bypass this validation or not?
+   >
+   > Want to go through the items that need validation point by point?
+
+3. **For each "needs validation" item**, use AskUserQuestion to clarify **before** proposing any code change. Present:
+   - What the reviewer said
+   - What the code currently does
+   - Why it's ambiguous (the specific question or contradiction)
+   - Ask the user what the correct behavior should be
+
+   Only after the user confirms the expected behavior should you propose a concrete fix.
+
+4. **For "straightforward" items**, confirm with the user that they agree these can be resolved directly. The user may move items between buckets.
+
+This triage ensures you never apply a "fix" that introduces a different bug because the business rule was misunderstood. The goal is: **when in doubt, ask first — never guess business rules.**
 
 ## Step 6: Resolve Sequentially
 
-Process comments **one by one** in PR order:
+Process comments **one by one** in PR order, respecting the triage decisions from Step 5.5:
 
 1. **Show a recap** of the current comment (tag, file, reviewer, what was asked).
-2. **Propose the change** — show the specific edit you intend to make.
-3. **Ask for confirmation** with these options:
+2. **If this comment was flagged as "needs validation"** and was already validated in the triage step, use the user's confirmed answer to propose the fix. If it wasn't validated yet (e.g., the user skipped triage), use AskUserQuestion now — do NOT guess the correct business behavior.
+3. **Propose the change** — show the specific edit you intend to make.
+4. **Ask for confirmation** with these options:
    - **yes** — Apply the change as proposed
    - **no** — Skip this comment entirely
    - **modify** — Let the user adjust the proposed change before applying
    - **skip** — Skip for now, come back later
    - **reply-only** — Don't change code; draft a reply to the reviewer instead
 
-4. **Enter Plan mode** when any of these conditions apply:
+5. **Enter Plan mode** when any of these conditions apply:
    - The change spans **multiple files**
    - The change involves **30+ lines** of modifications
    - The change has **architectural impact** (new patterns, structural changes)
@@ -279,7 +318,7 @@ Process comments **one by one** in PR order:
 
    In Plan mode: analyze the full scope, present the plan to the user, and only proceed after approval.
 
-5. **After applying each change**, immediately resolve the thread on GitHub (see Step 7).
+6. **After applying the change**, commit and push before resolving the thread. A comment should only be marked as resolved on GitHub after the fix is committed and pushed to the PR branch (see Step 7).
 
 ## Step 7: Auto-Resolve Threads
 
@@ -300,9 +339,10 @@ The `threadId` comes from the `id` field on the `reviewThreads > nodes` fetched 
 
 ### Rules for resolving:
 
+- **Only resolve after commit+push** — a thread should only be marked resolved on GitHub after the corresponding code change has been committed and pushed to the PR branch. Never resolve a thread for a change that only exists locally.
 - **Do NOT resolve** threads where the user chose **reply-only** — these need the reviewer's acknowledgment.
 - **Do NOT resolve** threads tagged ❓ Question that were answered with reply-only.
-- Only resolve threads that had actual code changes applied.
+- Only resolve threads that had actual code changes applied, committed, and pushed.
 
 ## Step 8: Summary
 
