@@ -185,6 +185,7 @@ Collect all review feedback automatically — never ask the user before fetching
 
 - **Skip resolved threads** — only process threads where `isResolved` is `false`.
 - **Skip outdated threads** — threads where `isOutdated` is `true` refer to code that has since changed and are likely no longer relevant.
+- **Detect already-addressed comments** — for each unresolved thread, check `comments.nodes` for replies authored by the PR author (compare `author.login` against the PR author from Step 1). If the PR author has replied to the thread, mark it as **"likely addressed"** and deprioritize it. These comments should be collected separately and presented at the end of the comment list (in Step 5) with a note: _"These may already be addressed — verify only."_ They still appear in the analysis but are processed last and with the expectation that no further action is needed.
 - **Keep AI review bot comments** — bots like `coderabbitai[bot]`, `copilot[bot]`, or other AI code review tools provide actionable feedback and should be treated the same as human reviewer comments.
 - Ignore **non-review bots** (e.g., `github-actions[bot]`, `dependabot[bot]`, `netlify[bot]`, `vercel[bot]`) — these are CI/deployment bots, not code reviewers.
 - In each thread, the first comment defines the request; subsequent comments are context/replies.
@@ -214,17 +215,27 @@ Each comment carries its tag inline rather than being grouped into separate sect
 
 ## Step 4: Deep Analysis
 
-For each actionable comment (everything except 👍 Praise), perform deep analysis:
+For each actionable comment (everything except 👍 Praise), perform analysis at a depth **tiered by comment severity** to avoid wasting tokens on minor issues:
 
-1. **Read the code** at the referenced `path:line` plus ~50 lines of surrounding context using the Read tool.
-2. **Read the PR diff** for the file:
+### Analysis tiers
+
+| Tier | Tags | Context window | PR diff | Dependency tracing |
+|------|------|---------------|---------|-------------------|
+| **Light** | 👍 Praise, 🟡 Minor, 📝 Documentation | ± 10 lines | Skip | Skip |
+| **Standard** | ✨ Improvement, ❓ Question, 🧪 Testing, ⚡ Performance | ± 30 lines | File diff only | Only if comment explicitly mentions other files |
+| **Deep** | 🔴 Critical, 🔒 Security, 🐛 Bug, ♿ Accessibility | ± 50 lines | File diff | Full — grep for dependencies, impact assessment |
+
+### Analysis steps (scaled by tier)
+
+1. **Read the code** at the referenced `path:line` plus surrounding context according to the tier above using the Read tool.
+2. **Read the PR diff** for the file (Standard and Deep tiers only):
    ```bash
    gh pr diff <NUMBER> -- <path>
    ```
 3. **Evaluate the comment** — does the reviewer's feedback make sense given the current code? Is it still relevant?
-4. **Assess impact** — what other files, functions, or modules would be affected by the change? Use Grep/Glob to trace dependencies if needed.
+4. **Assess impact** (Deep tier only, or Standard tier when the comment explicitly references other files) — what other files, functions, or modules would be affected by the change? Use Grep/Glob to trace dependencies if needed.
 5. **Suggest a concrete solution** if the reviewer didn't propose one. If the reviewer did suggest a fix, evaluate it and refine if needed.
-6. **List 2-3 alternatives** with brief pros/cons when the fix isn't obvious.
+6. **List 2-3 alternatives** with brief pros/cons when the fix isn't obvious (Standard and Deep tiers only — skip for Light tier).
 7. **Ambiguity Detection** — evaluate whether the comment or the code it references contains ambiguity in business rules. Ask yourself:
    - Is the expected behavior clearly defined, or could it be interpreted in more than one way?
    - Does the reviewer assume a business rule that isn't explicitly documented in the code?
@@ -294,9 +305,38 @@ Before resolving anything, walk through the comments **one by one** with the use
 
 This triage ensures you never apply a "fix" that introduces a different bug because the business rule was misunderstood. The goal is: **when in doubt, ask first — never guess business rules.**
 
+## Step 5.9: Batch Detection for Simple Fixes
+
+Before starting sequential resolution, scan all triaged comments for **simple fixes** — changes that meet ALL of these criteria:
+
+- Single file affected
+- Less than 10 lines changed
+- Clear, unambiguous intent (not flagged as ⚠️ Ambiguous)
+- No business logic involved
+- No architectural impact
+- Was categorized as "straightforward" in the triage step
+
+If **3 or more** simple fixes are detected, present a batch offer to the user:
+
+> **N comments are straightforward fixes** (typos, null checks, style nits, etc.). Apply all at once?
+>
+> | # | Tag | File | Fix |
+> |---|-----|------|-----|
+> | 1 | 🟡 | src/api.ts:12 | Add optional chaining |
+> | 3 | 📝 | src/utils.ts:5 | Fix JSDoc typo |
+> | 7 | 🟡 | src/auth.ts:30 | Remove unused import |
+>
+> **[yes]** — Apply all and resolve threads | **[no]** — Process one by one | **[pick]** — Choose which to batch
+
+- **yes**: Apply all simple fixes, commit, push, resolve all their threads, then continue with the remaining complex comments in Step 6.
+- **no**: Skip batching — process everything sequentially in Step 6.
+- **pick**: Let the user select which of the simple fixes to batch. Apply selected ones, then continue with the rest sequentially.
+
+If fewer than 3 simple fixes are detected, skip this step and go directly to Step 6.
+
 ## Step 6: Resolve Sequentially
 
-Process comments **one by one** in PR order, respecting the triage decisions from Step 5.5:
+Process remaining comments (those not already batch-resolved in Step 5.9) **one by one** in PR order, respecting the triage decisions from Step 5.5:
 
 1. **Show a recap** of the current comment (tag, file, reviewer, what was asked).
 2. **If this comment was flagged as "needs validation"** and was already validated in the triage step, use the user's confirmed answer to propose the fix. If it wasn't validated yet (e.g., the user skipped triage), use AskUserQuestion now — do NOT guess the correct business behavior.

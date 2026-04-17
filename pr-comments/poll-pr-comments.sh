@@ -14,8 +14,11 @@ OWNER="$1"
 REPO="$2"
 PR_NUMBER="$3"
 MAX_WAIT=600   # 10 minutes
-INTERVAL=30
+INTERVAL=15    # start at 15s, increase progressively
+INTERVAL_STEP=10
+INTERVAL_CAP=60
 ELAPSED=0
+STATUS_CHECKS=0
 
 GRAPHQL_QUERY='
 query($owner: String!, $repo: String!, $number: Int!) {
@@ -46,6 +49,17 @@ while [ $ELAPSED -lt $MAX_WAIT ]; do
   CR_STATE=$(gh api "repos/$OWNER/$REPO/commits/$HEAD_SHA/status" \
     --jq '.statuses[] | select(.context | test("coderabbit"; "i")) | .state' 2>/dev/null || echo "")
 
+  STATUS_CHECKS=$((STATUS_CHECKS + 1))
+
+  # Fallback: if no commit status found after 3 checks, look for a CodeRabbit review directly
+  if [ -z "$CR_STATE" ] && [ "$STATUS_CHECKS" -ge 3 ]; then
+    CR_REVIEW_STATE=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" \
+      --jq '[.[] | select(.user.login == "coderabbitai[bot]")] | sort_by(.submitted_at) | last | .state' 2>/dev/null || echo "")
+    if [ "$CR_REVIEW_STATE" = "COMMENTED" ] || [ "$CR_REVIEW_STATE" = "CHANGES_REQUESTED" ] || [ "$CR_REVIEW_STATE" = "APPROVED" ]; then
+      CR_STATE="success"
+    fi
+  fi
+
   if [ "$CR_STATE" = "success" ]; then
     # CodeRabbit finished — count open, non-outdated review threads
     OPEN_COUNT=$(gh api graphql \
@@ -64,9 +78,13 @@ while [ $ELAPSED -lt $MAX_WAIT ]; do
     fi
   fi
 
-  # Still pending or no status yet — wait and retry
+  # Still pending or no status yet — wait and retry with progressive backoff
   sleep "$INTERVAL"
   ELAPSED=$((ELAPSED + INTERVAL))
+  INTERVAL=$((INTERVAL + INTERVAL_STEP))
+  if [ "$INTERVAL" -gt "$INTERVAL_CAP" ]; then
+    INTERVAL=$INTERVAL_CAP
+  fi
 done
 
 echo "TIMEOUT"
