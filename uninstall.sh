@@ -4,6 +4,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$HOME/.claude/skills"
 COMMANDS_DIR="$HOME/.claude/commands"
+CLAUDE_DIR="$HOME/.claude"
 
 # Remove skill symlinks
 for skill_dir in "$SCRIPT_DIR"/*/; do
@@ -11,6 +12,7 @@ for skill_dir in "$SCRIPT_DIR"/*/; do
 
   [[ "$skill_name" == .* ]] && continue
   [[ "$skill_name" == "commands" ]] && continue
+  [[ "$skill_name" == "statusline" ]] && continue
   [ ! -f "$skill_dir/SKILL.md" ] && continue
 
   target="$SKILLS_DIR/$skill_name"
@@ -33,6 +35,15 @@ if [ -d "$SCRIPT_DIR/commands" ]; then
       echo "Removed command: $target"
     fi
   done
+fi
+
+# Remove statusline symlink
+STATUSLINE_SRC="$SCRIPT_DIR/statusline/statusline.js"
+STATUSLINE_TARGET="$CLAUDE_DIR/statusline.js"
+
+if [ -L "$STATUSLINE_TARGET" ] && [ "$(readlink "$STATUSLINE_TARGET")" = "$STATUSLINE_SRC" ]; then
+  rm "$STATUSLINE_TARGET"
+  echo "Removed statusline: $STATUSLINE_TARGET"
 fi
 
 # Remove third-party skill symlinks

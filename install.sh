@@ -4,6 +4,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$HOME/.claude/skills"
 COMMANDS_DIR="$HOME/.claude/commands"
+CLAUDE_DIR="$HOME/.claude"
 
 GREEN='\033[0;32m'
 NC='\033[0m'
@@ -16,9 +17,10 @@ skills_already_installed=0
 for skill_dir in "$SCRIPT_DIR"/*/; do
   skill_name="$(basename "$skill_dir")"
 
-  # Skip hidden directories, commands dir, and non-skill dirs
+  # Skip hidden directories, non-skill dirs, and dirs without SKILL.md
   [[ "$skill_name" == .* ]] && continue
   [[ "$skill_name" == "commands" ]] && continue
+  [[ "$skill_name" == "statusline" ]] && continue
   [ ! -f "$skill_dir/SKILL.md" ] && continue
 
   target="$SKILLS_DIR/$skill_name"
@@ -67,6 +69,26 @@ if [ -d "$SCRIPT_DIR/commands" ]; then
   done
 
   [ $cmds_already_installed -gt 0 ] && echo "All other commands already installed."
+fi
+
+# Install statusline
+STATUSLINE_SRC="$SCRIPT_DIR/statusline/statusline.js"
+STATUSLINE_TARGET="$CLAUDE_DIR/statusline.js"
+
+if [ -f "$STATUSLINE_SRC" ]; then
+  mkdir -p "$CLAUDE_DIR"
+
+  if [ -L "$STATUSLINE_TARGET" ] && [ "$(readlink "$STATUSLINE_TARGET")" = "$STATUSLINE_SRC" ]; then
+    echo "Statusline already installed."
+  elif [ -e "$STATUSLINE_TARGET" ] && [ ! -L "$STATUSLINE_TARGET" ]; then
+    echo "Skipping statusline (file already exists at $STATUSLINE_TARGET, not a symlink)"
+  else
+    [ -L "$STATUSLINE_TARGET" ] && rm "$STATUSLINE_TARGET"
+    ln -s "$STATUSLINE_SRC" "$STATUSLINE_TARGET"
+    echo -e "${GREEN}Statusline installed at $STATUSLINE_TARGET${NC}"
+    echo "  Add this to ~/.claude/settings.json to enable it:"
+    echo '    "statusLine": { "type": "command", "command": "node '"$STATUSLINE_TARGET"'" }'
+  fi
 fi
 
 # Install third-party skills

@@ -29,6 +29,10 @@ Curated skills from the community, cloned as independent repositories into `thir
 | ----------------------- | ------------------------------------------------------------------ | ---------- |
 | **frontend-slides**     | Create animation-rich HTML presentations without design expertise  | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) |
 
+## Statusline
+
+A custom Claude Code statusline lives in [`statusline/`](statusline/). It shows `project │ branch │ model · effort │ context-bar`. `install.sh` symlinks it to `~/.claude/statusline.js`; you enable it by adding a `statusLine` block to `~/.claude/settings.json` (see [`statusline/README.md`](statusline/README.md)).
+
 ## Commands
 
 | Command                 | Description                                                                                 |
