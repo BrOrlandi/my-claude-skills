@@ -78,7 +78,47 @@ When creating issues, follow this process:
 
 1. **Draft first, create after approval.** Always present the full title and description to the user for review before creating the issue in Jira. Never create an issue without explicit user approval of the content.
 2. **Use default priority.** Do not set priority (let Jira use its default, typically Medium) unless the user explicitly specifies a priority level.
-3. After approval, create the issue via REST API with ADF description format.
+3. **Pre-creation duplicate check (MANDATORY).** Before POSTing, query the 5 most recent issues created by the current user in the same project and verify no existing issue matches the summary. If a match is found, STOP and ask the user whether to abort, proceed, or link to the existing issue.
+4. After approval, create the issue via REST API with ADF description format, following the robust-call protocol below.
+5. **Post-creation verification (MANDATORY).** After the POST returns, re-query the 5 most recent issues and confirm exactly one new issue matches the summary. If two appear, delete the duplicate immediately and inform the user.
+
+### Robust-call protocol (prevents accidental duplicates)
+
+Shell output may be summarized, truncated, or wrapped by proxies (e.g. `rtk`, pagers). Never retry a create/mutation call just because the response looked "weird" — always inspect the HTTP status and parse the key from a file. If unsure, run the pre/post duplicate check before retrying.
+
+```bash
+# 1. Pre-check: list last 5 issues reported by me in project $PROJECT
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -X POST -H "Content-Type: application/json" \
+  -d "{\"jql\":\"project = $PROJECT AND reporter = currentUser() ORDER BY created DESC\",\"fields\":[\"summary\",\"created\"],\"maxResults\":5}" \
+  "$JIRA_URL/rest/api/3/search/jql" -o /tmp/jira_precheck.json
+python3 -c "
+import json,sys
+d=json.load(open('/tmp/jira_precheck.json'))
+target=sys.argv[1].strip().lower()
+for i in d.get('issues',[]):
+    s=i['fields']['summary'].strip().lower()
+    if s==target:
+        print('DUPLICATE FOUND:', i['key'], i['fields']['summary'])
+        sys.exit(1)
+print('OK: no duplicate in last 5')
+" "SUMMARY HERE" || exit 1
+
+# 2. Create — ALWAYS write body to file and capture HTTP status separately
+HTTP=$(curl -s -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -H "Content-Type: application/json" \
+  -d @/tmp/jira_task_payload.json \
+  "$JIRA_URL/rest/api/3/issue" -o /tmp/jira_create_result.json -w "%{http_code}")
+echo "HTTP $HTTP"
+KEY=$(python3 -c "import json; print(json.load(open('/tmp/jira_create_result.json')).get('key',''))")
+echo "Created: $KEY"
+
+# 3. Post-check: confirm no duplicate was created
+# (same query as step 1; assert the summary appears exactly once)
+```
+
+**Rules:**
+- Treat HTTP 201 as success — do **not** re-run the POST, even if the stdout looks empty/odd.
+- If HTTP is missing or non-2xx, run the pre-check query again to see what actually exists before retrying.
+- Never run `curl ... | python3` for create/mutation calls — pipes can swallow response bodies on proxy interference. Always `-o <file>` then parse.
 
 ## Assignee Suggestion
 
