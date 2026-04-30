@@ -37,6 +37,8 @@ A custom Claude Code statusline lives in [`statusline/`](statusline/). It shows 
 
 ## Commands
 
+Claude Code slash command versions of the git workflows. Codex users should use the `commit` and `pr` skills instead.
+
 | Command                 | Description                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------- |
 | **/commit**             | Create structured git commits using conventional commit format with smart branch validation |

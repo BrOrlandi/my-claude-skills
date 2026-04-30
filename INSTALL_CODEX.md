@@ -13,8 +13,10 @@ In Codex, the setup is split into two parts:
 
 The top-level custom skills from this repository:
 
+- `commit`
 - `jira`
 - `jira-link`
+- `pr`
 - `pr-comments`
 - `pr-review`
 - `pr-screenshots`
@@ -32,7 +34,7 @@ Third-party skill from `thirdparty-skills.json`:
 
 This repository also contains Claude-style command files in `commands/`.
 
-Important: in current `codex-cli` builds, local plugin installation can succeed, but plugin-provided slash commands are not surfaced in the `/` command popup the same way Claude Code commands are. In practice, do not rely on these commands appearing as `/commit` or `/pr` in Codex CLI today.
+Important: in current `codex-cli` builds, local plugin installation can succeed, but plugin-provided slash commands are not surfaced in the `/` command popup the same way Claude Code commands are. In practice, use the `commit` and `pr` skills instead of relying on `/commit` or `/pr` appearing in Codex CLI.
 
 ## Prerequisites
 
@@ -230,6 +232,8 @@ Remove the installed skill symlinks:
 ```bash
 rm -f ~/.agents/skills/jira
 rm -f ~/.agents/skills/jira-link
+rm -f ~/.agents/skills/commit
+rm -f ~/.agents/skills/pr
 rm -f ~/.agents/skills/pr-comments
 rm -f ~/.agents/skills/pr-review
 rm -f ~/.agents/skills/pr-screenshots
