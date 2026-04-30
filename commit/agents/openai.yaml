@@ -1,0 +1,4 @@
+interface:
+  display_name: "Git Commit"
+  short_description: "Create structured conventional commits from local git changes."
+  default_prompt: "Create a structured git commit for the current branch changes."

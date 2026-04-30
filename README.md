@@ -6,6 +6,8 @@ A collection of reusable [Claude Code](https://claude.ai/claude-code) skills and
 
 | Skill                   | Description                                                                                                             | Invocation |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------- |
+| **commit**              | Create structured git commits using conventional commit format with branch and PR checks                                | Autonomous |
+| **pr**                  | Create or update GitHub pull requests against `main`, using the commit workflow when local changes exist                | Autonomous |
 | **refactor-components** | Find large React components (.tsx/.jsx) and refactor them into smaller, focused components                              | Explicit only |
 | **refactor-code**       | Find large non-React code files (.ts/.js) and refactor them into smaller, focused files (routes, services, utils, etc.) | Explicit only |
 | **jira**                | Interact with Jira using the jira CLI and REST API. View, create, list, transition, and comment on issues with proper @mentions | Autonomous |
