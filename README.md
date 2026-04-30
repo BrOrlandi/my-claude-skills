@@ -35,6 +35,8 @@ Curated skills from the community, cloned as independent repositories into `thir
 
 A custom Claude Code statusline lives in [`statusline/`](statusline/). It shows `project │ branch │ model · effort │ context-bar`. `install.sh` symlinks it to `~/.claude/statusline.js`; you enable it by adding a `statusLine` block to `~/.claude/settings.json` (see [`statusline/README.md`](statusline/README.md)).
 
+For Codex, the equivalent native status-line configuration lives in [`codex-statusline/`](codex-statusline/). It configures `~/.codex/config.toml` with project, branch, model/reasoning, context usage, and usage-limit items.
+
 ## Commands
 
 Claude Code slash command versions of the git workflows. Codex users should use the `commit` and `pr` skills instead.
