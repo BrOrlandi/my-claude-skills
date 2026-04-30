@@ -29,10 +29,11 @@ Appears only when the Claude Code payload includes `rate_limits` (Pro/Max subscr
 
 Dot-bar colors (current): dim <30% · green <60% · yellow <80% · orange <90% · red ≥90%.
 
-## Line 3 — reset times
+## Line 3 — reset times + caveman badge
 
 - 5-hour reset as `h:mmam/pm` with time remaining in parentheses
 - 7-day reset as `h:mmam/pm` if within 24h, otherwise `Weekday, h:mmam/pm`
+- **`[CAVEMAN]`** (dim) — appended when the [caveman](https://github.com/JuliusBrussee/caveman) plugin is active. Mode suffix shown for non-default modes (`[CAVEMAN:ULTRA]`, `[CAVEMAN:LITE]`, etc.). Reads `$CLAUDE_CONFIG_DIR/.caveman-active` (default `~/.claude/.caveman-active`); symlinks rejected, contents capped at 64 bytes, mode whitelisted. If no rate-limits row exists, the badge falls back to its own line.
 
 ## Install
 

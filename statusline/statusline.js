@@ -66,6 +66,33 @@ function readEffort() {
   }
 }
 
+// Read caveman mode flag safely. Mirrors the safety rules in
+// caveman-statusline.sh: refuse symlinks, cap at 64 bytes, whitelist modes.
+// A local attacker could otherwise point the flag at ~/.ssh/id_rsa or stuff
+// it with ANSI escapes that would render every keystroke.
+const CAVEMAN_MODES = new Set([
+  'off', 'lite', 'full', 'ultra',
+  'wenyan-lite', 'wenyan', 'wenyan-full', 'wenyan-ultra',
+  'commit', 'review', 'compress',
+]);
+function readCavemanMode() {
+  try {
+    const claudeDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+    const flagPath = path.join(claudeDir, '.caveman-active');
+    const lst = fs.lstatSync(flagPath);
+    if (lst.isSymbolicLink() || !lst.isFile()) return null;
+    const fd = fs.openSync(flagPath, 'r');
+    const buf = Buffer.alloc(64);
+    const n = fs.readSync(fd, buf, 0, 64, 0);
+    fs.closeSync(fd);
+    const raw = buf.slice(0, n).toString('utf8').trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+    if (!CAVEMAN_MODES.has(raw) || raw === 'off') return null;
+    return raw;
+  } catch (e) {
+    return null;
+  }
+}
+
 let input = '';
 const stdinTimeout = setTimeout(() => process.exit(0), 3000);
 process.stdin.setEncoding('utf8');
@@ -171,6 +198,21 @@ process.stdin.on('end', () => {
 
       if (limParts.length) output += '\n' + limParts.join(limSep);
       if (resetParts.length) output += '\n' + resetParts.join(limSep);
+    }
+
+    // Caveman badge — row 3. Append to resets line if present, else emit own line.
+    const cavemanMode = readCavemanMode();
+    const label = cavemanMode
+      ? `CAVEMAN ${cavemanMode.toUpperCase()}`
+      : 'CAVEMAN OFF';
+    const badge = `\x1b[2m${label}\x1b[0m`;
+    const lines = output.split('\n');
+    if (lines.length >= 3) {
+      lines[2] = `${lines[2]} \x1b[2m|\x1b[0m ${badge}`;
+      output = lines.join('\n');
+    } else {
+      while (output.split('\n').length < 2) output += '\n';
+      output += '\n' + badge;
     }
 
     process.stdout.write(output);
