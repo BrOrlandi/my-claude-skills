@@ -409,3 +409,71 @@ After resolving all selected items, present a summary table:
 - Run your type checker and tests to verify nothing broke
 - Use `/commit` to commit the changes
 ```
+
+## Step 9: Post-Push Watch (Normal Mode)
+
+After Step 8, automatically start a 6-minute watch for new review comments triggered by the push (e.g., CodeRabbit re-reviewing the diff, or a human leaving a follow-up).
+
+**Skip this step entirely if no commits were pushed during this session** — there's nothing new for reviewers to respond to. Also skip it in full-auto mode, which already handles polling exhaustively via Phase 4.
+
+### Step 9.1: Capture the baseline
+
+Before launching the watch, snapshot the state so the loop can tell "new" from "already there":
+
+- `BASELINE_SHA` — PR head commit SHA after the final push:
+  ```bash
+  gh pr view <NUMBER> --json headRefOid -q '.headRefOid'
+  ```
+- `BASELINE_TIME` — ISO 8601 timestamp of that commit:
+  ```bash
+  gh api repos/{owner}/{repo}/commits/<BASELINE_SHA> --jq '.commit.committer.date'
+  ```
+- `KNOWN_THREAD_IDS` — JSON array of thread IDs that were open at the end of Step 7 and the user intentionally left unresolved (reply-only, skipped, ❓ Question deferred to reviewer, declined stylistic suggestions). Collect these from the resolution state tracked in Steps 6–7.
+- `DEADLINE` — current UTC time + 6 minutes, ISO 8601.
+
+### Step 9.2: Launch the dynamic loop
+
+Invoke the `loop` skill in **dynamic mode** (no interval — each iteration decides when to wake up). Pass a self-contained prompt with the baseline embedded inline so every iteration resumes with the same reference point:
+
+```
+Watch PR #<NUMBER> in <owner>/<repo> for new review comments.
+
+Baseline:
+- SHA: <BASELINE_SHA>
+- Time: <BASELINE_TIME>
+- Deadline: <DEADLINE>
+- Known-open threads: <JSON array of thread IDs>
+
+Each iteration:
+
+1. If current UTC time >= Deadline, stop (do NOT call ScheduleWakeup) and tell
+   the user: "PR #<NUMBER> watch ended — 6 minutes elapsed with no new review
+   comments."
+
+2. Fetch review threads with the same GraphQL query from Step 2 of the
+   pr-comments skill.
+
+3. Filter to "new alerting" threads:
+   - isResolved == false
+   - isOutdated == false
+   - Thread id NOT in Known-open threads
+   - First comment's createdAt > Baseline Time
+
+4. If new threads are found:
+   - Stop the loop (do NOT call ScheduleWakeup).
+   - Summarize briefly: tag, file:line, reviewer, 1-line excerpt of the first
+     comment.
+   - Use AskUserQuestion: "Found N new review comment(s) on PR #<NUMBER>. Run
+     /pr-comments now to address them, or dismiss?"
+
+5. Otherwise, call ScheduleWakeup with delaySeconds=60 and pass this same prompt
+   verbatim so the next iteration resumes with the same baseline.
+```
+
+### Why dynamic mode
+
+A fixed interval like `/loop 1m ...` keeps firing and has no clean stop hook when the condition is met. Dynamic mode lets each iteration decide whether to schedule the next one, so the watch exits cleanly as soon as the deadline passes or new comments surface — without leaving a zombie timer.
+
+### Why baseline filtering
+
+Without the SHA + timestamp + `KNOWN_THREAD_IDS` baseline, the loop would re-alert every minute on threads the user intentionally left open (reply-only, skipped, deferred questions). Filtering by `createdAt > BASELINE_TIME` and excluding known thread IDs ensures we only surface threads that actually appeared after the final push.
