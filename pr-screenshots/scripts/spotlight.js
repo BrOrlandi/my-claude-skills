@@ -13,6 +13,29 @@
  *   position        (string)  Annotation placement: "auto"|"top"|"bottom"|"left"|"right" (default: "auto")
  */
 
+/**
+ * Hide Claude Code's on-page UI chrome (glow border + phantom cursor) so it
+ * never leaks into screenshots. Uses an injected <style> tag with !important
+ * rules — more reliable than removing the nodes, because the agent may re-add
+ * them between calls. Idempotent: replaces any prior tag with the same id.
+ */
+function hideClaudeOverlays() {
+  const STYLE_ID = 'pr-screenshots-hide-overlays';
+  document.getElementById(STYLE_ID)?.remove();
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = `
+    #claude-agent-glow-border,
+    #claude-phantom-cursor {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function spotlight(config) {
   const {
     selector,
@@ -22,6 +45,9 @@ function spotlight(config) {
     overlayOpacity = 0.6,
     position = 'auto',
   } = config;
+
+  // Hide Claude Code UI chrome so it doesn't appear in screenshots.
+  hideClaudeOverlays();
 
   // Clean up any existing spotlight
   document.querySelectorAll('[data-spotlight]').forEach(el => el.remove());

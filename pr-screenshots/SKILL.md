@@ -248,6 +248,27 @@ For each item in the capture list, and for each mode in `capture_modes`:
 2. If a URL was provided for this item, navigate to it using `browser_navigate`.
 3. Ask the user to navigate to the correct screen if needed.
 4. Wait for the page to fully load.
+5. **Hide Claude Code's on-page UI chrome** so the glow border and phantom cursor never appear in the screenshot. Inject this CSS via `browser_evaluate` — using `display: none !important` is more reliable than removing the nodes, because the agent may re-add them between calls:
+   ```javascript
+   () => {
+     const STYLE_ID = 'pr-screenshots-hide-overlays';
+     document.getElementById(STYLE_ID)?.remove();
+     const style = document.createElement('style');
+     style.id = STYLE_ID;
+     style.textContent = `
+       #claude-agent-glow-border,
+       #claude-phantom-cursor {
+         display: none !important;
+         visibility: hidden !important;
+         opacity: 0 !important;
+         pointer-events: none !important;
+       }
+     `;
+     document.head.appendChild(style);
+     return { success: true };
+   }
+   ```
+   > **Note:** the spotlight script in Step 6b also calls `hideClaudeOverlays()` internally, so this manual step is only required when capturing **without** a spotlight (e.g. the user said "no spotlight"). When using spotlight, Step 6b handles this automatically.
 
 ### 6b. Inject spotlight overlay
 
