@@ -215,6 +215,20 @@ process.stdin.on('end', () => {
       output += '\n' + badge;
     }
 
+    // Last prompt — appended as last line. Read file written by UserPromptSubmit hook.
+    try {
+      const sid = data.session_id;
+      if (sid) {
+        const promptPath = path.join(os.homedir(), '.claude', 'last-prompts', `${sid}.txt`);
+        const raw = fs.readFileSync(promptPath, 'utf8').trim();
+        if (raw) {
+          const oneLine = raw.replace(/\s+/g, ' ');
+          const trimmed = oneLine.length > 120 ? oneLine.slice(0, 117) + '...' : oneLine;
+          output += `\n\x1b[2m❯ ${trimmed}\x1b[0m`;
+        }
+      }
+    } catch (e) { /* no prompt yet */ }
+
     process.stdout.write(output);
   } catch (e) {
     // Silent fail - don't break statusline on parse errors
