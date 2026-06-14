@@ -18,6 +18,10 @@ Usage:
   pr_assets.py --update-pr <number> --entry "<label>" "<url>" [--entry ...]
       Update the ## Screenshots section of a GitHub PR description.
 
+  pr_assets.py --update-pr <number> --pending --label "<label>" [--label ...]
+      Update the ## Screenshots section with placeholder ([Pending]) entries.
+      No images are uploaded — the user pastes them manually in the GitHub UI.
+
 """
 
 import argparse
@@ -162,11 +166,18 @@ SCREENSHOTS_PATTERN = re.compile(
 
 
 def build_screenshots_section(entries: list[tuple[str, str]]) -> str:
-    """Build a ## Screenshots markdown section from a list of (label, url) pairs."""
+    """Build a ## Screenshots markdown section from a list of (label, url) pairs.
+
+    When url is empty/None, the entry renders as a [Pending] placeholder so the
+    user can paste the image manually in the GitHub UI.
+    """
     lines = ["## Screenshots", ""]
     for i, (label, url) in enumerate(entries, start=1):
         lines.append(f"### {i}. {label}")
-        lines.append(f"![{label}]({url})")
+        if url:
+            lines.append(f"![{label}]({url})")
+        else:
+            lines.append("> 📸 _[Pending] — paste the screenshot here._")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
@@ -233,6 +244,18 @@ def main() -> None:
         dest="entries",
         help="Label + URL pair (repeatable). Used with --update-pr.",
     )
+    parser.add_argument(
+        "--pending",
+        action="store_true",
+        help="Render Screenshots entries as [Pending] placeholders (no upload). Used with --update-pr and --label.",
+    )
+    parser.add_argument(
+        "--label",
+        action="append",
+        dest="labels",
+        metavar="LABEL",
+        help="Label-only entry for pending mode (repeatable). Used with --update-pr --pending.",
+    )
     args = parser.parse_args()
 
     # --setup
@@ -246,6 +269,12 @@ def main() -> None:
 
     # --update-pr
     if args.update_pr:
+        if args.pending or args.labels:
+            if not args.labels:
+                print("Error: --update-pr --pending requires at least one --label LABEL.", file=sys.stderr)
+                sys.exit(1)
+            update_pr(args.update_pr, [(label, "") for label in args.labels])
+            return
         if not args.entries:
             print("Error: --update-pr requires at least one --entry LABEL URL pair.", file=sys.stderr)
             sys.exit(1)

@@ -1,8 +1,8 @@
 ---
 name: pr-screenshots
-description: Capture screenshots or GIF recordings of a new UI feature, upload them losslessly to a GitHub orphan branch (pr-assets), and add a Screenshots section to the current PR description. Supports spotlight effects that highlight specific components with a dark overlay, rounded cutout, and explanatory annotations based on the PR diff. Can temporarily modify source code to force UI states, add selectors, or simulate data for accurate captures — all changes are safely reverted after. Images are served via github.com blob URLs which work for both public and private repos. Use when the user wants to visually document a feature in a pull request — triggered by phrases like "add screenshots to my PR", "document this feature visually", "screenshot the new screens", or "record a GIF of this flow".
+description: Capture screenshots or GIF recordings of a new UI feature, upload them losslessly to a GitHub orphan branch (pr-assets), and add a Screenshots section to the current PR description. Supports spotlight effects that highlight specific components with a dark overlay, rounded cutout, and explanatory annotations based on the PR diff. Can temporarily modify source code to force UI states, add selectors, or simulate data for accurate captures — all changes are safely reverted after. Images are served via github.com blob URLs which work for both public and private repos. A "local" mode saves captures to the user's Downloads folder and inserts a Screenshots section with [Pending] placeholders so the user pastes the images into the PR themselves — nothing is committed or uploaded. Use when the user wants to visually document a feature in a pull request — triggered by phrases like "add screenshots to my PR", "document this feature visually", "screenshot the new screens", or "record a GIF of this flow".
 disable-model-invocation: true
-argument-hint: "[screenshot|gif] [url]"
+argument-hint: "[screenshot|gif] [local] [url]"
 ---
 
 # PR Screenshots Skill
@@ -18,6 +18,17 @@ Each screenshot can include a **spotlight effect** that highlights the changed c
 
 ---
 
+## Capture Modes: Upload (default) vs Local
+
+Two modes, selected by the `argument`:
+
+- **Upload mode (default)** — captures are uploaded to the `pr-assets` branch and embedded in the PR description automatically. Nothing for the user to do.
+- **Local mode** — triggered when the `argument` contains `local` (also accept `downloads`, `manual`, or `no-upload`). Captures are saved to the user's **Downloads** folder, the PR description gets a Screenshots section with **`[Pending]` placeholders** (titles only, no images), and the file paths are printed to chat. The user pastes the images into the PR themselves. **No upload, no commit, no `pr-assets` branch.**
+
+Detect the mode once at the start and set `local_mode = true|false`. The steps below note where the two modes diverge.
+
+---
+
 ## Step 1: Identify the PR
 
 Run:
@@ -30,6 +41,8 @@ If no PR is found, stop and tell the user: "No open PR found for the current bra
 Extract `number`, `title`, and `url` from the result.
 
 ## Step 2: Ensure the `pr-assets` branch exists
+
+> **Skip this step entirely in local mode** (`local_mode = true`) — no branch is needed because nothing is uploaded.
 
 Run:
 ```bash
@@ -192,6 +205,8 @@ Parse the `argument` to detect mode:
 - If `argument` contains `gif` → **GIF mode**
 - Otherwise → **Screenshot mode** (default)
 
+This is independent of `local_mode` (set in the Capture Modes section). A capture can be e.g. GIF + local, or screenshot + upload.
+
 ### 5b. Determine mobile captures
 
 **Default: desktop only.** Do NOT ask the user whether they want mobile screenshots — this avoids ambiguity when the user confirms the capture list with "yes" or "ok".
@@ -307,11 +322,18 @@ Check the return value:
 
 ### 6d. Take screenshot
 
+> **Save location depends on the mode:**
+> - **Upload mode** — save to `/tmp/` (temporary; uploaded in Step 8, then discarded).
+> - **Local mode** — save to the user's **Downloads** folder (`~/Downloads/`) with a **meaningful, slugified filename** based on the label, so the user can find and paste it easily — e.g. `~/Downloads/pr-{number}-login-screen.png`, `~/Downloads/pr-{number}-dashboard-mobile.png`. Avoid generic names like `pr-screenshot-1.png`.
+
 **Screenshot mode:**
 ```text
+# Upload mode:
 browser_take_screenshot → filename: /tmp/pr-screenshot-{n}.png
+# Local mode:
+browser_take_screenshot → filename: ~/Downloads/pr-{number}-{label-slug}.png
 ```
-For mobile captures, use: `/tmp/pr-screenshot-{n}-mobile.png`
+For mobile captures, append `-mobile` to the filename (e.g. `/tmp/pr-screenshot-{n}-mobile.png` or `~/Downloads/pr-{number}-{label-slug}-mobile.png`).
 
 **GIF mode:**
 1. Start recording: `mcp__claude-in-chrome__gif_creator action=start_recording`
@@ -320,7 +342,7 @@ For mobile captures, use: `/tmp/pr-screenshot-{n}-mobile.png`
 4. Take a final screenshot before stopping.
 5. Stop recording: `mcp__claude-in-chrome__gif_creator action=stop_recording`
 6. Export: `mcp__claude-in-chrome__gif_creator action=export filename=pr-screenshot-{n}.gif download=true`
-7. Find the exported file:
+7. Find the exported file (GIFs always export to Downloads):
    ```bash
    ls -t ~/Downloads/pr-screenshot-*.gif 2>/dev/null | head -1
    ```
@@ -328,6 +350,9 @@ For mobile captures, use: `/tmp/pr-screenshot-{n}-mobile.png`
    ```bash
    ls -t ~/Downloads/recording-*.gif 2>/dev/null | head -1
    ```
+   In **local mode**, rename the exported GIF to a meaningful name so the user can find it: `mv <exported> ~/Downloads/pr-{number}-{label-slug}.gif`.
+
+Track each capture's final file path alongside its label — both modes need the `{label, path}` pairs for the steps below.
 
 ### 6e. Remove spotlight overlay
 
@@ -398,6 +423,8 @@ Confirm the output matches the pre-Step-4 state. If there are unexpected leftove
 
 ## Step 8: Upload to GitHub (`pr-assets` branch)
 
+> **Skip this step entirely in local mode** (`local_mode = true`) — go straight to Step 9. Nothing is uploaded; the user pastes the images themselves.
+
 For each captured file (PNG, GIF, WEBP, JPG), run:
 ```bash
 python3 ~/.claude/skills/pr-screenshots/scripts/pr_assets.py <filepath>
@@ -416,6 +443,8 @@ Collect all `{label, url}` pairs. If any upload fails, report the error and ask 
 
 ## Step 9: Update PR Description
 
+### Upload mode (default)
+
 Run:
 ```bash
 python3 ~/.claude/skills/pr-screenshots/scripts/pr_assets.py \
@@ -427,12 +456,38 @@ python3 ~/.claude/skills/pr-screenshots/scripts/pr_assets.py \
 
 The script fetches the current PR body, replaces or appends the `## Screenshots` section with labeled images, and calls `gh pr edit` to update the description.
 
-Then open the PR in the browser:
+### Local mode
+
+Insert the Screenshots section with `[Pending]` placeholders (titles only — no images). Pass one `--label` per capture, in order:
+```bash
+python3 ~/.claude/skills/pr-screenshots/scripts/pr_assets.py \
+  --update-pr <number> --pending \
+  --label "<label1>" \
+  --label "<label2>" \
+  ...
+```
+
+Each entry renders as a heading plus a `> 📸 _[Pending] — paste the screenshot here._` placeholder. Then **print the captured file paths to the chat** so the user can drag-and-drop / copy-paste them into the matching `[Pending]` slots:
+
+```
+📸 Screenshots saved to your Downloads folder — paste each into its [Pending] slot in the PR:
+
+  1. Login screen        → ~/Downloads/pr-42-login-screen.png
+  2. Dashboard           → ~/Downloads/pr-42-dashboard.png
+  3. Dashboard – Mobile  → ~/Downloads/pr-42-dashboard-mobile.png
+```
+
+Tip the user: on GitHub you can drag the file directly onto the PR description editor, or copy the image and paste it — GitHub uploads it and replaces the `[Pending]` line.
+
+### Both modes
+
+Open the PR in the browser:
 ```bash
 gh pr view <number> --web
 ```
 
-Confirm to the user: "Screenshots have been added to PR #<number>. Opening in browser..."
+- Upload mode: "Screenshots have been added to PR #<number>. Opening in browser..."
+- Local mode: "Added a Screenshots section with [Pending] placeholders to PR #<number>, and saved the images to your Downloads folder. Paste each image into its slot. Opening in browser..."
 
 ---
 
@@ -451,6 +506,18 @@ The skill adds the following section to the PR description:
 
 ### 3. <Label for screenshot 2>
 ![<label>](<github.com blob url with ?raw=true>)
+```
+
+In **local mode**, images are replaced by a placeholder line:
+
+```markdown
+## Screenshots
+
+### 1. <Label for screenshot 1>
+> 📸 _[Pending] — paste the screenshot here._
+
+### 2. <Label for screenshot 2>
+> 📸 _[Pending] — paste the screenshot here._
 ```
 
 When both desktop and mobile captures exist for the same screen, group them together under consecutive headings (desktop first, then mobile). If a `## Screenshots` section already exists, it is replaced entirely with the new content.
