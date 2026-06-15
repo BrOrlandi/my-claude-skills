@@ -7,7 +7,7 @@ A collection of reusable [Claude Code](https://claude.ai/claude-code) skills and
 | Skill                   | Description                                                                                                             | Invocation |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------- |
 | **commit**              | Create structured git commits using conventional commit format with branch and PR checks                                | Autonomous |
-| **pr**                  | Create or update GitHub pull requests against `main`, using the commit workflow when local changes exist                | Autonomous |
+| **pr**                  | Create or update GitHub pull requests against the repo's default base branch (`main`, `develop`, etc.), using the commit workflow when local changes exist. Supports `review` to approve title/body before creating | Autonomous |
 | **refactor-components** | Find large React components (.tsx/.jsx) and refactor them into smaller, focused components                              | Explicit only |
 | **refactor-code**       | Find large non-React code files (.ts/.js) and refactor them into smaller, focused files (routes, services, utils, etc.) | Explicit only |
 | **jira**                | Interact with Jira using the jira CLI and REST API. View, create, list, transition, and comment on issues with proper @mentions | Autonomous |
@@ -39,12 +39,11 @@ For Codex, the equivalent native status-line configuration lives in [`codex-stat
 
 ## Commands
 
-Claude Code slash command versions of the git workflows. Codex users should use the `commit` and `pr` skills instead.
+Claude Code slash command versions of the git workflows. PR creation now lives in the `pr` skill (invoke with `/pr` or let Claude trigger it); Codex users should use the `commit` and `pr` skills.
 
 | Command                 | Description                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------- |
 | **/commit**             | Create structured git commits using conventional commit format with smart branch validation |
-| **/pr**                 | Create well-structured pull requests with context and testing instructions                  |
 | **/sync-env-to-github** | Sync environment variables to GitHub environment secrets (Production/staging)               |
 
 ## Installation

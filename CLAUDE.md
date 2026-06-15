@@ -9,7 +9,8 @@ A personal collection of reusable Claude Code **skills** and **commands**, insta
 ## Repository Structure
 
 - **Top-level skill folders** (`refactor-components/`, `refactor-code/`, `pr-comments/`, `pr-review/`): Custom skills authored in this repo. Each contains a `SKILL.md`.
-- **`commands/`**: Custom slash commands (`.md` files) — `/commit`, `/pr`, `/sync-env-to-github`.
+- **`commands/`**: Custom slash commands (`.md` files) — `/commit`, `/sync-env-to-github`.
+- **`pr/`**: The `pr` skill (create/update pull requests against `main`). Invoked via `/pr` or auto-triggered; replaced the former `/pr` command.
 - **`skills/`**: Git submodule pointing to [Anthropic's skills repo](https://github.com/anthropics/skills). Contains the `skill-creator` skill and many reference skills. This is a separate git repo — do not modify files inside it directly.
 - **`install.sh` / `uninstall.sh`**: Symlink management scripts that link skill folders and command files into `~/.claude/`.
 
@@ -30,4 +31,4 @@ A command is a single `.md` file in `commands/` with YAML frontmatter (`allowed-
 - Skills use `disable-model-invocation: true` when they should only run through explicit user invocation.
 - Commands declare `allowed-tools` in frontmatter to specify which tools they can use (e.g., `Bash(git add:*)`).
 - The `/commit` command uses conventional commit format: `type(scope): description`.
-- The `/pr` command always targets `main` as the base branch.
+- The `pr` skill targets the repository's default base branch (detected via `gh`, e.g. `main` or `develop`), not a hardcoded `main`.
