@@ -39,11 +39,10 @@ For Codex, the equivalent native status-line configuration lives in [`codex-stat
 
 ## Commands
 
-Claude Code slash command versions of the git workflows. PR creation now lives in the `pr` skill (invoke with `/pr` or let Claude trigger it); Codex users should use the `commit` and `pr` skills.
+The git workflows now live in the `commit` and `pr` skills (invoke with `/commit` and `/pr`, or let Claude trigger them autonomously). The remaining commands:
 
 | Command                 | Description                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------- |
-| **/commit**             | Create structured git commits using conventional commit format with smart branch validation |
 | **/sync-env-to-github** | Sync environment variables to GitHub environment secrets (Production/staging)               |
 
 ## Installation

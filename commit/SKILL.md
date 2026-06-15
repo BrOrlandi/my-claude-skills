@@ -5,7 +5,7 @@ description: Create structured git commits from the current repository changes. 
 
 # Commit
 
-Create coherent, reviewable commits after inspecting the current branch, local changes, and recent history. This is the Codex-compatible equivalent of `commands/commit.md`; keep the Claude Code command file separate and unchanged unless the user explicitly asks to edit it.
+Create coherent, reviewable commits after inspecting the current branch, local changes, and recent history.
 
 ## Workflow
 
