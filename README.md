@@ -18,6 +18,7 @@ A collection of reusable [Claude Code](https://claude.ai/claude-code) skills and
 | **pr-screenshots**      | Capture screenshots or GIF recordings of UI features, upload them losslessly to a dedicated GitHub orphan branch (`pr-assets`), and add a labeled Screenshots section to the current PR description. Images are served via `raw.githubusercontent.com` — no compression, opens inline (no forced download). Infers what to capture from conversation context, PR diff analysis, or user clarification. | Explicit only |
 | **security-review**     | Scan code for security vulnerabilities (hardcoded secrets, env var exposure, injection, auth issues), generate SECURITY.md guidelines, or verify compliance with existing security rules | Autonomous |
 | **slack**               | Send messages, upload files, read conversations, react to messages, and manage Slack workspaces using SlackCLI | Autonomous |
+| **autonomous-mode**     | Carry a task to completion without mid-flight questions — decide on ambiguities, log the calls, park real doubts for a single review at the end. Triggers on "modo autônomo", "não me interrompa", "work autonomously", "just finish it" and similar | Autonomous |
 | **skill-creator**       | Guide for creating effective skills that extend Claude's capabilities. From [Anthropic's skills repo](https://github.com/anthropics/skills/tree/main/skills/skill-creator) | Autonomous |
 
 - **Autonomous**: Claude can activate the skill on its own when it detects a relevant context (e.g., linking a PR to Jira after creating it).
