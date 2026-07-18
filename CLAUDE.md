@@ -12,6 +12,7 @@ A personal collection of reusable Claude Code **skills** and **commands**, insta
 - **`commands/`**: Custom slash commands (`.md` files) — `/sync-env-to-github`.
 - **`commit/` and `pr/`**: The `commit` and `pr` skills (structured commits; create/update pull requests against the repo's default base branch). Invoked via `/commit` and `/pr` or auto-triggered; replaced the former `/commit` and `/pr` commands.
 - **`skills/`**: Git submodule pointing to [Anthropic's skills repo](https://github.com/anthropics/skills). Contains the `skill-creator` skill and many reference skills. This is a separate git repo — do not modify files inside it directly.
+- **`sounds/`**: `.wav` files played by Claude Code hooks (`afplay`). Symlinked per-file into `~/.claude/sounds/` preserving subfolders; hooks must be wired manually in `~/.claude/settings.json`. See `sounds/README.md`.
 - **`install.sh` / `uninstall.sh`**: Symlink management scripts that link skill folders and command files into `~/.claude/`.
 
 ## How Install Works

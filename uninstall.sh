@@ -46,6 +46,22 @@ if [ -L "$STATUSLINE_TARGET" ] && [ "$(readlink "$STATUSLINE_TARGET")" = "$STATU
   echo "Removed statusline: $STATUSLINE_TARGET"
 fi
 
+# Remove sound symlinks
+SOUNDS_SRC="$SCRIPT_DIR/sounds"
+SOUNDS_TARGET="$CLAUDE_DIR/sounds"
+
+if [ -d "$SOUNDS_SRC" ]; then
+  while IFS= read -r sound_file; do
+    rel="${sound_file#$SOUNDS_SRC/}"
+    target="$SOUNDS_TARGET/$rel"
+
+    if [ -L "$target" ] && [ "$(readlink "$target")" = "$sound_file" ]; then
+      rm "$target"
+      echo "Removed sound: $target"
+    fi
+  done < <(find "$SOUNDS_SRC" -type f -name '*.wav')
+fi
+
 # Remove third-party skill symlinks
 JSON_FILE="$SCRIPT_DIR/thirdparty-skills.json"
 

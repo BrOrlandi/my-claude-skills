@@ -37,6 +37,15 @@ A custom Claude Code statusline lives in [`statusline/`](statusline/). It shows 
 
 For Codex, the equivalent native status-line configuration lives in [`codex-statusline/`](codex-statusline/). It configures `~/.codex/config.toml` with project, branch, model/reasoning, context usage, and usage-limit items.
 
+## Sounds
+
+Notification sounds played by Claude Code hooks live in [`sounds/`](sounds/). `install.sh` symlinks each `.wav` into `~/.claude/sounds/` (preserving subfolders); you enable them by adding hook entries to `~/.claude/settings.json`. See [`sounds/README.md`](sounds/README.md) for the setup.
+
+| Sound | Hook | When it plays |
+| ----- | ---- | ------------- |
+| `bell-notification.wav` | `Notification` | Claude needs your attention (permission prompt, idle input) |
+| `starwars/imperial-march-beep.wav` | `PreCompact` | Right before the context window is compacted |
+
 ## Commands
 
 The git workflows now live in the `commit` and `pr` skills (invoke with `/commit` and `/pr`, or let Claude trigger them autonomously). The remaining commands:

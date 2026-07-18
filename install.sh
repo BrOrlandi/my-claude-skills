@@ -91,6 +91,37 @@ if [ -f "$STATUSLINE_SRC" ]; then
   fi
 fi
 
+# Install sounds
+SOUNDS_SRC="$SCRIPT_DIR/sounds"
+SOUNDS_TARGET="$CLAUDE_DIR/sounds"
+
+if [ -d "$SOUNDS_SRC" ]; then
+  sounds_already_installed=0
+
+  while IFS= read -r sound_file; do
+    rel="${sound_file#$SOUNDS_SRC/}"
+    target="$SOUNDS_TARGET/$rel"
+
+    mkdir -p "$(dirname "$target")"
+
+    if [ -L "$target" ]; then
+      if [ "$(readlink "$target")" = "$sound_file" ]; then
+        sounds_already_installed=$((sounds_already_installed + 1))
+        continue
+      fi
+      rm "$target"
+    elif [ -f "$target" ]; then
+      echo "Skipping sound $rel (file already exists, not a symlink)"
+      continue
+    fi
+
+    ln -s "$sound_file" "$target"
+    echo -e "${GREEN}New Sound installed $rel!${NC}"
+  done < <(find "$SOUNDS_SRC" -type f -name '*.wav')
+
+  [ $sounds_already_installed -gt 0 ] && echo "All other sounds already installed."
+fi
+
 # Install third-party skills
 JSON_FILE="$SCRIPT_DIR/thirdparty-skills.json"
 
