@@ -34,28 +34,58 @@ If the user passes `review` (or `preview` / wording like "let me review first" /
    git log --oneline "$BASE..HEAD"
    gh pr list --state all --head "$(git branch --show-current)" --json number,title,url,state,isDraft,headRefName
    ```
-3. If there are uncommitted changes, commit them first using the `commit` skill workflow (conventional commits, logical grouping).
-4. Use the detected default branch as the base unless the user explicitly names a different base branch.
-5. If a PR already exists for the branch, update its title/body when useful instead of creating a duplicate.
-6. Generate a PR title from the branch commits using conventional commit style when possible. Keep it short and reviewer-facing.
-7. Draft the PR body. Default: do NOT ask the user to approve the title or body first — create the PR directly, then show the final title and body so the user can review and request edits afterward. In **review mode** (see Arguments): show the drafted title and body and wait for approval or edits before creating.
-8. Create or update the PR with `gh`, targeting the detected base branch:
+3. **Read the repository's own PR conventions** before drafting anything — see **Repository Conventions** below. The repo's rules outrank this skill's defaults.
+4. If there are uncommitted changes, commit them first using the `commit` skill workflow (conventional commits, logical grouping).
+5. Use the detected default branch as the base, unless the user names a different base or the repo's docs specify one (some repos default to `main` but require feature PRs to target `develop`). Precedence: user's choice → documented rule → detected default. When a documented rule overrides the detected default, say so when reporting the PR.
+6. If a PR already exists for the branch, update its title/body when useful instead of creating a duplicate.
+7. Generate a PR title from the branch commits using conventional commit style when possible — unless the repo documents a different title convention. Keep it short and reviewer-facing.
+8. Draft the PR body in the repo's format (template if one exists, otherwise the default below). Default: do NOT ask the user to approve the title or body first — create the PR directly, then show the final title and body so the user can review and request edits afterward. In **review mode** (see Arguments): show the drafted title and body and wait for approval or edits before creating.
+9. Create or update the PR with `gh`, targeting the detected base branch:
    ```bash
    gh pr create --base "$BASE" --title "<title>" --body-file <body-file>
    gh pr create --base "$BASE" --draft --title "<title>" --body-file <body-file>
    gh pr edit <number> --title "<title>" --body-file <body-file>
    ```
-9. After creating the PR, use the `jira-link` skill when applicable to offer Jira linking for repositories with configured Jira integration.
-10. Open the PR in the browser:
+10. After creating the PR, use the `jira-link` skill when applicable to offer Jira linking for repositories with configured Jira integration.
+11. Open the PR in the browser:
    ```bash
    gh pr view -w
    ```
 
-Always: detect the repository's default base branch, list existing PRs for the current branch, commit first when there are local changes, compare against that base branch, create or update the PR without pre-approval, show the final PR content afterward for review, honor the requested PR mode, and offer Jira linking after creation.
+Always: detect the repository's default base branch, read the repo's PR conventions, list existing PRs for the current branch, commit first when there are local changes, compare against that base branch, create or update the PR without pre-approval, show the final PR content afterward for review, honor the requested PR mode, and offer Jira linking after creation.
+
+## Repository Conventions
+
+Every repo documents how it wants PRs written. Read those docs before drafting — a PR that ignores the house style is rework for the author and noise for the reviewer.
+
+Find them:
+
+```bash
+ls CLAUDE.md AGENTS.md CONTRIBUTING.md README.md 2>/dev/null
+ls .github/PULL_REQUEST_TEMPLATE.md .github/pull_request_template.md \
+   .github/PULL_REQUEST_TEMPLATE/*.md docs/PULL_REQUEST_TEMPLATE.md 2>/dev/null
+
+# conventions local to the directories this PR touches
+git diff --name-only "$BASE...HEAD" | xargs -r -n1 dirname | sort -u \
+  | while read -r d; do ls "$d"/CLAUDE.md "$d"/AGENTS.md "$d"/README.md 2>/dev/null; done
+```
+
+Read what exists. Skip re-reading any `CLAUDE.md` already loaded into your context.
+
+What to take from each:
+
+- **A PR template is binding.** If one exists, use its headings, order and checklists verbatim instead of the default format below. Fill every section; keep checklist items and tick only the ones that are actually true.
+- **`CLAUDE.md` / `AGENTS.md` / `CONTRIBUTING.md`** — title format (conventional commits, ticket prefix, or something else), required sections, base-branch rules (e.g. features target `develop`), whether PRs open as draft, screenshot or changelog requirements, labels and reviewers to set.
+- **READMEs of the touched directories** — the vocabulary that module uses. Name things the way the module names them, so reviewers recognize what changed.
+- **Language.** If the repo's docs and recent merged PRs are written in a language other than English, write the PR in that language. Check with `gh pr list --state merged --limit 5 --json title,body`.
+
+Precedence when these disagree: **explicit user instruction → repo template → repo docs (`CLAUDE.md`, `CONTRIBUTING.md`) → this skill's default format.**
+
+Do not fake compliance. If a required section can't be filled from the actual diff, say what is missing and why instead of inventing content to fill the heading.
 
 ## PR Body Format
 
-Use this structure:
+Use this structure **only when the repo has no PR template or documented format**:
 
 ```md
 ## Context

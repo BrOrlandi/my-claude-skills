@@ -42,6 +42,34 @@ Review a GitHub PR's diff and submit a single GitHub review with inline comments
    gh pr view <NUMBER> --json files --jq '.files[] | "\(.path) +\(.additions) -\(.deletions)"'
    ```
 
+## Step 2.5: Load the Repository's Conventions
+
+Read the repo's own rules before judging the code. They decide what counts as a defect here — reviewing against generic taste produces comments the team will reject.
+
+```bash
+ls CLAUDE.md AGENTS.md CONTRIBUTING.md README.md 2>/dev/null
+ls .github/PULL_REQUEST_TEMPLATE.md .github/pull_request_template.md 2>/dev/null
+
+# conventions local to the directories this PR touches
+gh pr view <NUMBER> --json files -q '.files[].path' | xargs -r -n1 dirname | sort -u \
+  | while read -r d; do ls "$d"/CLAUDE.md "$d"/AGENTS.md "$d"/README.md 2>/dev/null; done
+```
+
+Read what exists (skip any `CLAUDE.md` already in your context) and extract the rules that make findings concrete:
+
+- Required and forbidden patterns, architecture and layering rules, module boundaries
+- Error-handling, logging and observability conventions
+- Naming, file layout, and where tests belong; test requirements for new code
+- Dependency policy, security rules, generated files that must not be hand-edited
+- Build/lint/test commands the author was expected to run
+
+How this changes the review:
+
+- **A violation of a documented repo rule is a finding**, even when the code would be fine elsewhere. Cite the source — `CLAUDE.md:42 requires …` — so the comment is actionable rather than a matter of opinion.
+- **A pattern the repo explicitly endorses is not a finding**, however much it differs from your own preference. Drop those comments.
+- **If a documented rule and the diff conflict and the rule looks stale**, raise it as ❓ a question about the rule, not as 🔴 critical.
+- **Check the PR body against the repo's template** — a missing required section or an unticked mandatory checklist item is worth one comment, not one per item.
+
 ## Step 3: Analyze Each Changed File
 
 For each changed file in the diff:
@@ -66,6 +94,7 @@ For each changed file in the diff:
 ### Review guidelines
 
 - Focus on **substantive issues** — skip formatting nitpicks, trivial style preferences, and obvious code.
+- **Judge against the repo's conventions from Step 2.5, not your own preferences.** Quote the rule you're invoking.
 - Every comment must be **actionable** — say what to change, not just what's wrong.
 - Include a **concrete code suggestion** when possible.
 - Be respectful and constructive. Assume the author is competent.

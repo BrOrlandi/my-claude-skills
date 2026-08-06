@@ -28,7 +28,7 @@ Process each open comment **autonomously** using these decision criteria:
 | Decision                           | When to apply                                                                                                                                                                      |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Fix automatically**              | Bugs, a11y issues, error handling, stale closures, missing validation, security issues, concrete improvements with clear intent                                                    |
-| **Decline**                        | Stylistic opinions, over-engineering suggestions, changes that conflict with CLAUDE.md conventions                                                                                 |
+| **Decline**                        | Stylistic opinions, over-engineering suggestions, changes that conflict with the repo conventions loaded in Step 3.5 (`CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, directory READMEs) — quote the rule in the reply |
 | **Ask the user (AskUserQuestion)** | Ambiguous comments, business logic changes (pricing, permissions, workflows, domain validation, feature flags), architectural decisions with broad impact, unclear reviewer intent, any comment where the "correct" behavior depends on domain knowledge or could be interpreted multiple ways |
 
 For each comment:
@@ -213,6 +213,25 @@ For each comment, assign **one** inline category tag based on its content:
 
 Each comment carries its tag inline rather than being grouped into separate sections.
 
+## Step 3.5: Load the Repository's Conventions
+
+Read the repo's own rules before analyzing any comment. They are the tie-breaker for fix-vs-decline: a reviewer's suggestion that contradicts a documented convention gets declined with the rule quoted, and a comment asking for something the repo requires is a fix, not an opinion. This applies to bot reviewers (CodeRabbit, Copilot) too — they frequently suggest generic best practices the repo has deliberately ruled out.
+
+```bash
+ls CLAUDE.md AGENTS.md CONTRIBUTING.md README.md 2>/dev/null
+ls .github/PULL_REQUEST_TEMPLATE.md .github/pull_request_template.md 2>/dev/null
+
+# conventions local to the directories the comments point at
+gh pr view <NUMBER> --json files -q '.files[].path' | xargs -r -n1 dirname | sort -u \
+  | while read -r d; do ls "$d"/CLAUDE.md "$d"/AGENTS.md "$d"/README.md 2>/dev/null; done
+```
+
+Read what exists; skip any `CLAUDE.md` already in your context. Extract the rules that settle review disputes: required and forbidden patterns, architecture and layering, error-handling and logging conventions, naming, test placement and requirements, dependency policy, and the build/lint/test commands to run after fixing.
+
+When declining on these grounds, the reply must quote the rule and its source (`CLAUDE.md:42`), not just assert a preference — that is what makes a decline reviewable instead of dismissive.
+
+If a reviewer's comment and a documented rule genuinely conflict and the rule looks stale, treat it as a question for the user rather than deciding unilaterally.
+
 ## Step 4: Deep Analysis
 
 For each actionable comment (everything except 👍 Praise), perform analysis at a depth **tiered by comment severity** to avoid wasting tokens on minor issues:
@@ -275,8 +294,9 @@ After presenting all comments, proceed to the triage step.
 
 Before resolving anything, walk through the comments **one by one** with the user to validate understanding and alignment — especially for comments flagged as ambiguous or touching business logic.
 
-1. **Group comments into two buckets:**
+1. **Group comments into three buckets:**
    - **Straightforward** — clear bug fixes, typos, missing null checks, style issues where the intent is unambiguous.
+   - **Declining** — the suggestion contradicts a repo convention from Step 3.5. List these with the rule that overrides them so the user can overrule you.
    - **Needs validation** — anything flagged as ⚠️ Ambiguous in Step 4, business logic changes, comments where the reviewer's intent could be interpreted multiple ways, or where the "correct" behavior depends on domain knowledge you don't have.
 
 2. **Present a triage summary** to the user using AskUserQuestion:
@@ -286,6 +306,9 @@ Before resolving anything, walk through the comments **one by one** with the use
    > **Can resolve directly (N):**
    > - #1 — 🔴 src/auth.ts:45 — null check missing (clear fix)
    > - #3 — 🟡 src/api.ts:12 — style nit (optional chaining)
+   >
+   > **Plan to decline (N):**
+   > - #5 — ✨ src/api.ts:30 — reviewer wants a barrel export; `CLAUDE.md:18` forbids them. Say so and skip?
    >
    > **Need your input first (M):**
    > - #2 — ⚠️ src/pricing.ts:80 — reviewer says discount should cap at 30%, but code allows 50%. Which is correct?
