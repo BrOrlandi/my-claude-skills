@@ -66,6 +66,6 @@ Actions:
 ## Notes
 
 - Secrets are write-only on GitHub - you cannot read their values back, only verify they exist.
-- The repo is `beuni-tecnologia/new-dashboard`.
+- The target repo is the current repository — detect it with `gh repo view --json nameWithOwner -q '.nameWithOwner'` rather than hardcoding one.
 - All env vars for this project are stored as **environment secrets** (not environment variables or repo-level secrets).
 - Use `gh secret list --env <ENV_NAME>` to see all current secrets for an environment.
