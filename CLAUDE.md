@@ -33,3 +33,4 @@ A command is a single `.md` file in `commands/` with YAML frontmatter (`allowed-
 - Commands declare `allowed-tools` in frontmatter to specify which tools they can use (e.g., `Bash(git add:*)`).
 - The `commit` skill uses conventional commit format: `type(scope): description`.
 - The `pr` skill targets the repository's default base branch (detected via `gh`, e.g. `main` or `develop`), not a hardcoded `main`.
+- **Private, work-specific settings go in a skill-local `config.json`**, which `.gitignore` excludes via `**/config.json`. Commit a `config.example.json` next to it as the public template, and document the schema in the skill's `references/config-format.md`. Skills read it through the install symlink at `~/.claude/skills/<skill>/config.json` and must degrade silently when it is absent. Example: `pr/config.json` maps a GitHub org to its default PR reviewers.

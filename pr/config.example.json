@@ -1,0 +1,8 @@
+{
+  "orgs": {
+    "acme-inc": {
+      "team_reviewers": ["acme-inc/developers"],
+      "reviewers": []
+    }
+  }
+}

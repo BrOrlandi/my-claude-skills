@@ -1,6 +1,10 @@
 .claude
+
+# Private, work-specific skill config (e.g. pr/config.json — default reviewers per org).
+# Committed templates live alongside as *.example.json.
 **/config.json
 .playwright-mcp
 __pycache__/
 *.pyc
 thirdparty/
+install-*.sh

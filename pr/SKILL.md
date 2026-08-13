@@ -46,13 +46,80 @@ If the user passes `review` (or `preview` / wording like "let me review first" /
    gh pr create --base "$BASE" --draft --title "<title>" --body-file <body-file>
    gh pr edit <number> --title "<title>" --body-file <body-file>
    ```
-10. After creating the PR, use the `jira-link` skill when applicable to offer Jira linking for repositories with configured Jira integration.
-11. Open the PR in the browser:
+10. Request the default reviewers configured for the repository's GitHub org — see **Default Reviewers** below.
+11. After creating the PR, use the `jira-link` skill when applicable to offer Jira linking for repositories with configured Jira integration.
+12. Open the PR in the browser:
    ```bash
    gh pr view -w
    ```
 
-Always: detect the repository's default base branch, read the repo's PR conventions, list existing PRs for the current branch, commit first when there are local changes, compare against that base branch, create or update the PR without pre-approval, show the final PR content afterward for review, honor the requested PR mode, and offer Jira linking after creation.
+Always: detect the repository's default base branch, read the repo's PR conventions, list existing PRs for the current branch, commit first when there are local changes, compare against that base branch, create or update the PR without pre-approval, show the final PR content afterward for review, honor the requested PR mode, request the org's default reviewers, and offer Jira linking after creation.
+
+## Default Reviewers
+
+Some organizations want every PR routed to the same team. That mapping is personal and
+work-specific, so it lives in a **gitignored** config file rather than in this skill:
+`~/.claude/skills/pr/config.json` (see `references/config-format.md`; `config.example.json`
+is the committed template).
+
+```json
+{
+  "orgs": {
+    "acme-inc": {
+      "team_reviewers": ["acme-inc/developers"],
+      "reviewers": []
+    }
+  }
+}
+```
+
+Apply it **after** the PR exists, never as a flag on `gh pr create`: an unresolvable
+reviewer makes `gh pr create` fail outright, which would lose the PR over a config typo.
+
+```bash
+ORG=$(gh repo view --json owner -q '.owner.login')
+PR_CONFIG="$HOME/.claude/skills/pr/config.json"
+
+REVIEWERS=$(ORG="$ORG" PR_CONFIG="$PR_CONFIG" python3 -c '
+import json, os, sys
+try:
+    cfg = json.load(open(os.environ["PR_CONFIG"]))
+except (FileNotFoundError, ValueError):
+    sys.exit(0)
+org = cfg.get("orgs", {}).get(os.environ["ORG"], {})
+print(",".join(org.get("team_reviewers", []) + org.get("reviewers", [])))
+' 2>/dev/null)
+
+[ -n "$REVIEWERS" ] && gh pr edit <number> --add-reviewer "$REVIEWERS"
+```
+
+Rules:
+
+- **Org not in the config, or no config file** — skip silently. Personal repos and
+  unconfigured orgs get no reviewers; this is not an error worth reporting.
+- **Teams use `org/team-slug`** (e.g. `acme-inc/developers`). A bare slug does not resolve.
+- **Never request the PR author.** GitHub rejects it and the whole call fails. Drop the
+  author's login from `reviewers` before calling `gh`.
+- **Do not re-request reviewers already on the PR** — it re-notifies them. Check first;
+  teams come back as `slug` in the same `org/team` form the config stores, users as `login`,
+  so the output compares directly against the configured values:
+  ```bash
+  gh pr view <number> --json reviewRequests -q '.reviewRequests[] | .slug // .login'
+  ```
+- **Draft PRs still get the request.** GitHub records it and notifies when the PR is marked
+  ready, so drafts are configured the same way.
+- **A reviewer failure never fails the PR.** If `gh pr edit --add-reviewer` errors (team
+  renamed, insufficient permission, org restricts review requests), report the error and
+  continue with the rest of the workflow.
+- **The user's explicit instruction wins.** If they name reviewers, or ask for none, honor
+  that instead of the config.
+
+### First-Time Setup
+
+If the repo's org has no entry in the config, ask once: "This repo belongs to **{org}**.
+Should every PR here request a default reviewer team? If so, which one (e.g.
+`{org}/developers`)?" Persist the answer under `orgs.{org}`; if they decline, record
+nothing and do not ask again in this conversation.
 
 ## Repository Conventions
 

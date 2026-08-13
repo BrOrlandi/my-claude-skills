@@ -24,6 +24,30 @@ A collection of reusable [Claude Code](https://claude.ai/claude-code) skills and
 - **Autonomous**: Claude can activate the skill on its own when it detects a relevant context (e.g., linking a PR to Jira after creating it).
 - **Explicit only**: The skill only runs when you invoke it directly (e.g., `/pr-review 123`). Claude will not trigger it autonomously.
 
+### Default PR Reviewers
+
+The **pr** skill can request the same reviewer team on every PR opened in a given GitHub
+organization. That mapping is personal, so it lives in `pr/config.json`, which is
+**gitignored** and never published. Start from the committed template:
+
+```bash
+cp pr/config.example.json pr/config.json
+```
+
+```json
+{
+  "orgs": {
+    "acme-inc": {
+      "team_reviewers": ["acme-inc/developers"],
+      "reviewers": []
+    }
+  }
+}
+```
+
+Repos owned by an org that isn't listed get no reviewers. See
+[pr/references/config-format.md](pr/references/config-format.md) for the full format.
+
 ## Third-Party Skills
 
 Curated skills from the community, cloned as independent repositories into `thirdparty/`. See [THIRDPARTY.md](THIRDPARTY.md) for instructions on adding new ones.
