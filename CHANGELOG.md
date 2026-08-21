@@ -9,6 +9,16 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-08-21
+
+### Changed
+
+- **`release` skill** — a repository that keeps no version number at all is now a complete
+  convention rather than a gap: `bump.policy: "none"` says so, and the change collector reports
+  "no version to bump" instead of proposing one it cannot apply. It also warns when the commits it
+  found are dated the same day as the changelog entry it anchored on, since those are usually
+  already described there.
+
 ## 2026-08-20
 
 ### Added

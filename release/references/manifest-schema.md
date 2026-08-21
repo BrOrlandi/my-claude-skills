@@ -22,7 +22,7 @@ key is honest, a guessed one causes a wrong edit.
 |---|---|---|
 | `manifestVersion` | `1` | Schema version. |
 | `commitConvention` | `conventional` \| `free` | Whether commit subjects can be classified by prefix. With `free`, classification falls back to reading the diffs. |
-| `bump.policy` | `conventional-commits` \| `manual` | How the next version is proposed. `manual` always asks. |
+| `bump.policy` | `conventional-commits` \| `manual` \| `none` | How the next version is proposed. `manual` always asks. `none` means the unit has no version number at all — a date-grouped changelog and nothing to bump; say so rather than leaving a version policy that never applies. |
 | `bump.cadence` | `per-release` \| `per-commit` | `per-release` is the common case. `per-commit` means every commit raises the version and stages it with the change — for a service whose version is a freshness signal rather than a release name. |
 | `bump.confirm` | `true` \| `false` | Whether to confirm the version with the user. Default `true`. |
 

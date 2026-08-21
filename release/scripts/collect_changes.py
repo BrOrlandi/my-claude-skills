@@ -210,14 +210,17 @@ def current_version(app: dict, root: Path) -> dict:
     return out
 
 
-def propose(commits: list[dict], cur: str | None) -> dict:
+def propose(commits: list[dict], cur: str | None, policy: str = "conventional-commits") -> dict:
     included = [c for c in commits if c["verdict"] == "include"]
+    if policy == "none" or not cur:
+        # A unit with no version number (a date-grouped changelog, say) has nothing to bump.
+        return {"level": None, "version": None, "included": len(included), "total": len(commits)}
     level = "patch"
     if any(c["breaking"] for c in included):
         level = "major"
     elif any(c["type"] == "feat" for c in included):
         level = "minor"
-    return {"level": level, "version": bump_semver(cur, level) if cur else None,
+    return {"level": level, "version": bump_semver(cur, level),
             "included": len(included), "total": len(commits)}
 
 
@@ -270,15 +273,23 @@ def report(app: dict, root: Path, since: str | None, limit: int, bump: dict | No
     anchor = resolve_anchor(app, root, since)
     commits = log_commits(app, root, anchor, limit)
     cur = current_version(app, root)
+    warnings = consistency_warnings(app, root, cur, bump or {})
+    if anchor.get("date"):
+        same_day = [c for c in commits if c["date"] == anchor["date"]]
+        if same_day:
+            warnings.append(
+                f"{len(same_day)} commit(s) are dated {anchor['date']}, the same day as the entry the "
+                "range was anchored on — they may already be described there. Check that entry before "
+                "writing them again, or add to it instead of opening a new one")
     return {
-        "warnings": consistency_warnings(app, root, cur, bump or {}),
+        "warnings": warnings,
         "app": app.get("id"),
         "label": app.get("label"),
         "kind": app.get("kind"),
         "paths": app.get("paths") or ["<whole repo>"],
         "anchor": anchor,
         "current": cur,
-        "proposal": propose(commits, cur["semver"]),
+        "proposal": propose(commits, cur["semver"], (bump or {}).get("policy", "conventional-commits")),
         "commits": commits,
         "changelogs": [c.get("path") for c in (app.get("changelogs") or [])],
         "publish": [p.get("channel") for p in (app.get("publish") or [])],
@@ -296,8 +307,8 @@ def human(rep: dict) -> None:
     for err in cur["errors"]:
         print(f"  ! {err}")
     p = rep["proposal"]
-    print(f"proposal   : {p['level']} -> {p['version']}  "
-          f"({p['included']} release-worthy of {p['total']} commits)")
+    head = f"{p['level']} -> {p['version']}" if p["level"] else "no version to bump"
+    print(f"proposal   : {head}  ({p['included']} release-worthy of {p['total']} commits)")
     print(f"changelogs : {', '.join(rep['changelogs']) or '(none configured)'}")
     print(f"publish    : {', '.join(rep['publish']) or '(nothing published)'}")
     for w in rep.get("warnings", []):
