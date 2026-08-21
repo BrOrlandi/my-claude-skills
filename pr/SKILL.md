@@ -56,7 +56,8 @@ If the user passes `review` (or `preview` / wording like "let me review first" /
    ```
 11. Request the default reviewers configured for the repository's GitHub org — see **Default Reviewers** below.
 12. After creating the PR, use the `jira-link` skill when applicable to offer Jira linking for repositories with configured Jira integration.
-13. Open the PR in the browser:
+13. If the repository has `.claude/release.json` and the branch's commits touch an app with changelog targets, offer the changelog update in one sentence using the `release` skill, and let the user decide. Stay quiet when there is no manifest — a repo without a release convention is not asking for one at PR time.
+14. Open the PR in the browser:
    ```bash
    gh pr view -w
    ```
