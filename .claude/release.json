@@ -1,0 +1,25 @@
+{
+  "manifestVersion": 1,
+  "commitConvention": "conventional",
+  "bump": { "policy": "none" },
+  "apps": [
+    {
+      "id": "skills",
+      "label": "Claude Code skills, commands, statusline and sounds",
+      "kind": "library",
+      "version": { "anchor": "changelog-date", "files": [] },
+      "changelogs": [
+        {
+          "path": "CHANGELOG.md",
+          "format": "md-date-sections",
+          "audience": "public",
+          "language": "en",
+          "detail": "full",
+          "dateFormat": "YYYY-MM-DD"
+        }
+      ],
+      "publish": [],
+      "docs": ["README.md#installation"]
+    }
+  ]
+}

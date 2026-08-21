@@ -1,4 +1,5 @@
-.claude
+.claude/*
+!.claude/release.json
 
 # Private, work-specific skill config (e.g. pr/config.json — default reviewers per org).
 # Committed templates live alongside as *.example.json.

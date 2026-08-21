@@ -34,3 +34,17 @@ A command is a single `.md` file in `commands/` with YAML frontmatter (`allowed-
 - The `commit` skill uses conventional commit format: `type(scope): description`.
 - The `pr` skill targets the repository's default base branch (detected via `gh`, e.g. `main` or `develop`), not a hardcoded `main`.
 - **Private, work-specific settings go in a skill-local `config.json`**, which `.gitignore` excludes via `**/config.json`. Commit a `config.example.json` next to it as the public template, and document the schema in the skill's `references/config-format.md`. Skills read it through the install symlink at `~/.claude/skills/<skill>/config.json` and must degrade silently when it is absent. Example: `pr/config.json` maps a GitHub org to its default PR reviewers.
+
+## Release & Changelog
+
+Structured convention: `.claude/release.json` (read by the `release` skill).
+
+- One release unit: the whole collection. **No version number and no tags** — installation is
+  `git clone` + `./install.sh`, so there is nothing for a version to pin.
+- Changelog: `CHANGELOG.md` at the root, grouped by the day the work landed (`## YYYY-MM-DD`),
+  newest first, in English, written for whoever installs the skills.
+- What earns an entry: a change someone installing this would notice — a new skill or command, a
+  skill that behaves differently, new statusline or sound behaviour. Repo plumbing does not:
+  install-script internals, README formatting, and the vendored `skills/` submodule and
+  `thirdparty/` contents.
+- When a change and its changelog entry ship together, they belong in the same commit.
