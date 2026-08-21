@@ -1,0 +1,63 @@
+{
+  "skill_name": "release",
+  "evals": [
+    {
+      "id": 1,
+      "name": "eval-1-setup-version-only",
+      "prompt": "Quero registrar o versionamento desse projeto direito — define e documenta como a versão funciona aqui.",
+      "repo": "cameras-echo (clone) — homelab Node service, version in package.json bumped every commit, no tags, no changelog, deployed on merge",
+      "expected_output": "cameras-echo (clone) — homelab Node service, version in package.json bumped every commit, no tags, no changelog, deployed on merge",
+      "assertions": [
+        "`.claude/release.json` exists and is valid JSON with `manifestVersion` and a non-empty `apps` list",
+        "The manifest's only version file is `package.json` / key `version` — the file the repo actually uses",
+        "`bump.cadence` is `per-commit`, matching the repo's documented rule that every commit raises the version",
+        "`changelogs` is empty and `publish` is empty — no changelog or release channel invented for a repo that has neither",
+        "No CHANGELOG.md (or equivalent history file) was created anywhere in the repo",
+        "CLAUDE.md gained (or kept) a release/versioning section that points at `.claude/release.json` and names package.json as the version source",
+        "The repo's existing 'Bump the version in every commit' rules were not deleted or contradicted",
+        "No git tag was created and package.json's version was not bumped as part of setup"
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "eval-2-setup-monorepo",
+      "prompt": "Configura release e changelog nesse repositório.",
+      "repo": "bt-battery-notifier (clone) — macOS app + Android app (phone & wear) in one repo, two changelogs, store metadata dirs, RELEASING.md, macOS at 1.5.0 with newest tag v1.4.1",
+      "expected_output": "bt-battery-notifier (clone) — macOS app + Android app (phone & wear) in one repo, two changelogs, store metadata dirs, RELEASING.md, macOS at 1.5.0 with newest tag v1.4.1",
+      "assertions": [
+        "`.claude/release.json` is valid JSON and declares two apps: the macOS app and the Android app",
+        "Android version files are `android-app/version.properties` with `versionName` as semver and `versionCode` as counter",
+        "macOS version files are `macos-app/Resources/Info.plist` with `CFBundleShortVersionString` and `CFBundleVersion`",
+        "Tag prefixes differ per app (`v` for macOS, `android-v` for Android) so the two 1.x lines cannot collide",
+        "Android changelog targets include both `android-app/CHANGELOG.md` and `playstore/release-notes.md`, the store one carrying a 500-character limit and pt-BR",
+        "macOS changelog target is the root `CHANGELOG.md`",
+        "Every path referenced in the manifest exists in the repo (no invented files)",
+        "CLAUDE.md gained a Release & Changelog section naming both units, their version files and their tag schemes",
+        "No changelog file was overwritten or recreated, no version was bumped, and no tag was created",
+        "The macOS inconsistency is surfaced: version 1.5.0 against newest tag v1.4.1 (a release that was never tagged)",
+        "`RELEASING.md` is referenced (manifest `docs` or CLAUDE.md) instead of having its content duplicated"
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "eval-3-notes-inapp-ptbr",
+      "prompt": "Atualiza as novidades do app com tudo que mudou desde a última entrada.",
+      "repo": "RaceFriends (clone) — manifest already committed: single web unit, no version files, in-app changelog at packages/shared/src/screens/support-releases.ts (ts-array, pt-BR, adminOnly flag), anchor changelog-date (newest entry: 3 de Agosto de 2026)",
+      "expected_output": "RaceFriends (clone) — manifest already committed: single web unit, no version files, in-app changelog at packages/shared/src/screens/support-releases.ts (ts-array, pt-BR, adminOnly flag), anchor changelog-date (newest entry: 3 de Agosto de 2026)",
+      "assertions": [
+        "Only `packages/shared/src/screens/support-releases.ts` was modified; no new files and no version bump (the unit declares no version files)",
+        "A new release entry is inserted at the TOP of the `releases` array, dated after '3 de Agosto de 2026' in the file's `DD de MMMM de YYYY` pt-BR format",
+        "The diff only adds lines to the array — no existing entry was reworded or removed",
+        "Every new description is pt-BR with correct diacritics and starts with a bold `**Título**:` prefix, matching the file's style",
+        "Every new feature object carries an explicit `adminOnly` field",
+        "No entry describes a docs/chore/refactor commit (no ASO documentation, no google-services.json ignore, no dead-method removal)",
+        "The entries map to real feat/fix commits in range (participations tab, live timing fix, full name in the mobile header, regulamento changes)",
+        "The file still parses as valid TypeScript (balanced braces, trailing commas consistent with the file)",
+        "Admin-only work (secretaria, Sympla sync, audit logs) is either absent or flagged `adminOnly: true` — never presented to users"
+      ],
+      "files": []
+    }
+  ]
+}
