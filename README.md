@@ -8,7 +8,7 @@ every project and update with a `git pull`.
 | ---- | ----------------- |
 | [**Skills**](#skills) | Workflow skills Claude can run or trigger on its own — commits, pull requests, Jira, refactors, security review, releases |
 | [**Commands**](#commands) | Slash commands you type yourself |
-| [**Hooks**](#hooks) | Sounds when Claude needs you, last-prompt capture for the statusline, and (macOS) keeping the Mac awake while it works |
+| [**Hooks**](#hooks) | Sounds when Claude needs you or finishes a turn, last-prompt capture for the statusline, and (macOS) keeping the Mac awake while it works |
 | [**Statusline**](#statusline) | Project · branch · model · context bar · rate-limit usage · your last prompt — every row optional |
 | [**Third-party skills**](#third-party-skills) | Community skills this repo tracks as separate clones |
 
@@ -138,7 +138,7 @@ Everything this repo ships lives in [`hooks/`](hooks/): the scripts, the sounds 
 
 | Hook group | Event(s) | Platform | What it does |
 | ---------- | -------- | -------- | ------------ |
-| **Sounds** | `Notification`, `PreCompact` | macOS (`afplay`) | Plays `bell-notification.wav` when Claude needs you, and the Imperial March beep right before a context compaction |
+| **Sounds** | `Notification`, `Stop`, `PreCompact` | macOS (`afplay`) | Plays `bell-notification.wav` when Claude needs you, a muted marimba tap when a turn ends, and the Imperial March beep right before a context compaction |
 | **Last prompt** | `UserPromptSubmit`, `SessionEnd` | any (needs `jq`) | Saves your last prompt locally so the statusline can show it back to you |
 | **Caffeinate** | `UserPromptSubmit`, `PreToolUse`, `Stop`, `SessionEnd` | macOS only | Keeps the Mac awake while Claude is working, and lets it sleep the moment the turn ends |
 | **RTK rewrite** | `PreToolUse` (Bash) | any, third-party | Optional: rewrites shell commands to their token-cheap [`rtk`](https://github.com/rtk-ai/rtk) equivalent. Documented here, installed from RTK |

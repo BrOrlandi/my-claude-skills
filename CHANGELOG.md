@@ -9,6 +9,24 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-09-02
+
+### Added
+
+- **A sound for the end of a turn.** `hooks/sounds/stop-marimba-muted.wav` on the `Stop` hook — a
+  260 ms damped marimba tap that plays when Claude finishes responding, so you can look away during
+  a long task and hear when it lands. It is deliberately quieter and much shorter than the
+  notification bell, because `Stop` fires on every turn, including a one-line answer. Wiring is in
+  [`hooks/README.md`](hooks/README.md#sounds); if you already run the caffeinate hooks, the sound
+  joins the `Stop` array they are in rather than replacing it.
+
+### Changed
+
+- **The install prompt now asks about each sound separately.** It plays the bell, the turn-end tap
+  and the compaction beep one at a time and takes a yes or no on each, instead of treating the
+  sounds as one block you either take or skip. Only the ones you pick get linked and wired, and it
+  tells you which single entry to delete to turn one off later.
+
 ## 2026-09-01
 
 ### Added

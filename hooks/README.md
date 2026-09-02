@@ -12,7 +12,7 @@ walks through them one by one and merges the JSON for you.
 
 | Hook group | Event(s) | Platform | Needs | What it does |
 | ---------- | -------- | -------- | ----- | ------------ |
-| **Sounds** | `Notification`, `PreCompact` | macOS (`afplay`) | — | Plays a sound when Claude needs you, and before a context compaction |
+| **Sounds** | `Notification`, `Stop`, `PreCompact` | macOS (`afplay`) | — | Plays a sound when Claude needs you, when a turn ends, and before a context compaction |
 | **Last prompt** | `UserPromptSubmit`, `SessionEnd` | any | `jq` | Saves your last prompt so the statusline can show it back to you |
 | **Caffeinate** | `UserPromptSubmit`, `PreToolUse`, `Stop`, `SessionEnd` | macOS only | — | Keeps the Mac awake while Claude is working, releases it when the turn ends |
 | **RTK rewrite** | `PreToolUse` (Bash) | any | [rtk](https://github.com/rtk-ai/rtk), `jq` | Optional, third-party: rewrites shell commands to their token-cheap `rtk` equivalent |
@@ -26,6 +26,7 @@ hooks/
 │   └── cleanup-last-prompt.sh   → ~/.claude/hooks/cleanup-last-prompt.sh
 └── sounds/
     ├── bell-notification.wav          → ~/.claude/sounds/bell-notification.wav
+    ├── stop-marimba-muted.wav         → ~/.claude/sounds/stop-marimba-muted.wav
     └── starwars/imperial-march-beep.wav → ~/.claude/sounds/starwars/…
 ```
 
@@ -44,12 +45,23 @@ hook returns immediately and never blocks the session.
 | Sound | Hook | When it plays |
 | ----- | ---- | ------------- |
 | `bell-notification.wav` | `Notification` | Claude needs your attention — a permission prompt, or it has been idle waiting on you |
+| `stop-marimba-muted.wav` | `Stop` | Claude finished the turn — a damped marimba tap, 260 ms, deliberately quiet |
 | `starwars/imperial-march-beep.wav` | `PreCompact` | Right before the context window is compacted |
+
+`Stop` fires at the end of *every* turn, a one-line answer included, so the sound that goes there
+has to be shorter and quieter than a notification you are meant to react to — hence the muted
+marimba rather than the bell.
+
+Take them one at a time: each sound is one independent entry in `settings.json`, so wiring the
+turn-end tap and skipping the bell (or any other combination) is fine, and removing one later means
+deleting its entry — the others keep working. Swapping the file itself needs no rewiring: point the
+command at a different `.wav` under `~/.claude/sounds/`.
 
 Hear them before deciding:
 
 ```bash
 afplay ~/.claude/sounds/bell-notification.wav
+afplay ~/.claude/sounds/stop-marimba-muted.wav
 afplay ~/.claude/sounds/starwars/imperial-march-beep.wav
 ```
 
@@ -66,6 +78,14 @@ Wiring:
         ]
       }
     ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "afplay ~/.claude/sounds/stop-marimba-muted.wav &" }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "matcher": "",
@@ -77,6 +97,10 @@ Wiring:
   }
 }
 ```
+
+If you also wired the caffeinate hooks, `Stop` already exists — add the `afplay` command to that
+event's `hooks` array instead of creating a second `"Stop"` key, which would silently replace the
+first.
 
 **Other events that take the same `afplay` command**, if you want more feedback:
 

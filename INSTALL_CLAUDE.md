@@ -67,7 +67,7 @@ Then show the user the menu of what this repo can install, and ask where they wa
 | ---- | ---------- |
 | **Skills** | ~15 workflow skills — commits, PRs, Jira, refactors, security review, releases |
 | **Commands** | Slash commands (currently `/sync-env-to-github`) |
-| **Hooks** | Sounds when Claude needs you, last-prompt capture, and (macOS) keeping the Mac awake while it works |
+| **Hooks** | Sounds when Claude needs you and when a turn ends, last-prompt capture, and (macOS) keeping the Mac awake while it works |
 | **Statusline** | A custom status line: project, branch, model, context bar, rate-limit usage, last prompt |
 | **Third-party skills** | Community skills this repo tracks as separate clones |
 
@@ -187,8 +187,11 @@ mkdir -p ~/.claude/hooks
 ln -s "$REPO/hooks/scripts/<script>.sh" ~/.claude/hooks/<script>.sh
 mkdir -p ~/.claude/sounds/starwars
 ln -s "$REPO/hooks/sounds/bell-notification.wav" ~/.claude/sounds/bell-notification.wav
+ln -s "$REPO/hooks/sounds/stop-marimba-muted.wav" ~/.claude/sounds/stop-marimba-muted.wav
 ln -s "$REPO/hooks/sounds/starwars/imperial-march-beep.wav" ~/.claude/sounds/starwars/imperial-march-beep.wav
 ```
+
+Link only what the user picked — a hook they said no to gets no symlink either.
 
 Linking does nothing on its own — the hook only fires once its entry is in
 `~/.claude/settings.json`. Do that per group, with the user's yes, using the JSON blocks in
@@ -196,25 +199,48 @@ Linking does nothing on its own — the hook only fires once its entry is in
 
 ### 4a. Sounds
 
-Pitch: *"Claude plays a sound when it needs you — a permission prompt, or when it's been sitting
-idle waiting for your answer. Useful when you send it off on a long task and go do something else."*
+Three sounds, three separate events, and **each one is its own yes or no** — nobody has to take
+the set. Some people want the turn-end tap and nothing else; some want only the bell. Ask per sound,
+not once for the group.
 
-**Offer to play it** before they decide, using the player for their OS (from Step 0) — `afplay` on
+Pitch the group in one line: *"Claude plays a short sound on a specific moment — it needs you, it
+finished, it's about to compact the context. Useful when you send it off on a long task and go do
+something else."*
+
+**Play each one before asking about it.** Use the player for their OS (from Step 0) — `afplay` on
 macOS, `paplay`/`aplay` on Linux, `powershell -c (New-Object Media.SoundPlayer '<path>').PlaySync()`
-on Windows:
+on Windows — and play from the repo when the file isn't linked yet:
 
 ```bash
-afplay ~/.claude/sounds/bell-notification.wav        # macOS
-paplay ~/.claude/sounds/bell-notification.wav        # Linux (PulseAudio); aplay for ALSA
+afplay ~/.claude/sounds/bell-notification.wav        # macOS, once linked
+afplay $REPO/hooks/sounds/bell-notification.wav      # macOS, straight from the clone
+paplay $REPO/hooks/sounds/bell-notification.wav      # Linux (PulseAudio); aplay for ALSA
 ```
 
-If the file isn't linked yet, play it straight from the repo:
-`<player> $REPO/hooks/sounds/bell-notification.wav`. Play the second one too if they're curious —
-`starwars/imperial-march-beep.wav`, which fires right before the context window gets compacted.
+| Sound | Event | Play it, then say |
+| ----- | ----- | ----------------- |
+| `bell-notification.wav` | `Notification` | Claude needs you — a permission prompt, or it has gone idle waiting on an answer. 1.5 s, the loudest of the three |
+| `stop-marimba-muted.wav` | `Stop` | Claude finished the turn. A 260 ms damped marimba tap — *"you look away, it finishes, you hear it"*. Warn that `Stop` fires on **every** turn, a one-line answer included, which is exactly why this one is quiet and short and not the bell |
+| `starwars/imperial-march-beep.wav` | `PreCompact` | Right before the context window is compacted — the session is about to lose detail |
 
-Then ask: wire both, only the notification bell, or skip. Write the hook command with their player,
-not with `afplay`, and say the non-macOS players are untested here. No working player on the
-machine → say so and skip the sound hooks rather than wiring a command that fails silently.
+Then ask with `AskUserQuestion`, **multi-select, one option per sound**, so any combination is
+reachable: the bell, the turn-end tap, the compaction beep. Selecting none is a valid answer and
+means skip 4a entirely. Only link and wire the ones they picked.
+
+Two things to say while asking:
+
+- Each sound is one independent entry in `settings.json`. Turning one off later means deleting its
+  entry (or the whole event key, if nothing else sits under it) — the other two keep working. Say
+  this out loud; people accept a sound more readily once they know it's one line to remove.
+- Any of the three files can be swapped for another `.wav` without touching the wiring: same path,
+  different file, or point the command at a new one in `$REPO/hooks/sounds/`.
+
+Write the hook command with their player, not with `afplay`, and say the non-macOS players are
+untested here. No working player on the machine → say so and skip the sound hooks rather than wiring
+a command that fails silently.
+
+If they take the `Stop` sound *and* the caffeinate hooks from 4c, both commands go in the same
+`Stop` array — one event key, two entries, never a second `"Stop"` key.
 
 ### 4b. Last prompt
 
