@@ -20,6 +20,10 @@ History starts here: earlier work is in the git log, not in this file.
   working and releases it the moment the turn ends. `./install.sh` links the scripts into
   `~/.claude/hooks/`; wiring them up stays your call. RTK's command-rewrite hook is documented there
   too, without vendoring a copy that would go stale.
+- **The statusline is configurable.** `statusline/config.json` (gitignored, template in
+  `config.example.json`) turns individual rows off — project, branch, model, effort, context bar,
+  rate-limit bars, pace arrow, reset times, caveman badge, last prompt. Leave it out and you get
+  everything, as before.
 
 ### Changed
 

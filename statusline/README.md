@@ -1,11 +1,14 @@
 # Statusline
 
-Custom Claude Code statusline showing project, branch, model · effort, context usage, and rate-limit tracking with pace projection.
+Custom Claude Code statusline showing project, branch, model · effort, context usage, rate-limit
+tracking with pace projection, and the prompt you last sent. Every row can be turned off — see
+[Customize](#customize-which-rows-you-see).
 
 ```
 my-claude-skills │ main │ Claude Opus 4.7 (1M context) · xhigh │ ████░░░░░░ 45%
 current: ○○○○○○○○○○ 0% | weekly: ●●●●●○○○○○ 45% | pace: ↓
-resets 4:00pm (4h10m) | resets Thu, 4:00pm
+resets 4:00pm (4h10m) | resets Thu, 4:00pm | caveman off
+❯ review the auth middleware and tell me what breaks under load
 ```
 
 ## Line 1 — project │ branch │ model · effort │ context
@@ -34,6 +37,58 @@ Dot-bar colors (current): dim <30% · green <60% · yellow <80% · orange <90% �
 - 5-hour reset as `h:mmam/pm` with time remaining in parentheses
 - 7-day reset as `h:mmam/pm` if within 24h, otherwise `Weekday, h:mmam/pm`
 - **`caveman <mode>`** (dim, lowercase) — shows the active mode of the [caveman](https://github.com/JuliusBrussee/caveman) plugin (`caveman full`, `caveman ultra`, …), or `caveman off` when inactive. Reads `$CLAUDE_CONFIG_DIR/.caveman-active` (default `~/.claude/.caveman-active`); symlinks rejected, contents capped at 64 bytes, mode whitelisted. If no rate-limits row exists, the badge falls back to its own line.
+
+## Line 4 — your last prompt
+
+`❯ <the prompt you last sent>`, dimmed and truncated to 120 characters. Handy when several
+sessions are open and you want to see at a glance which one is doing what.
+
+It appears only if the **last-prompt hooks** from [`hooks/`](../hooks/) are installed — they write
+`~/.claude/last-prompts/<session_id>.txt`, which this script reads. No hooks, no row.
+
+## Customize which rows you see
+
+Every segment above is on by default. To hide some, copy the template and flip the ones you don't
+want:
+
+```bash
+cp statusline/config.example.json statusline/config.json
+```
+
+```json
+{
+  "project": true,
+  "branch": true,
+  "model": true,
+  "effort": true,
+  "context": true,
+  "rateLimits": true,
+  "pace": true,
+  "resets": true,
+  "caveman": true,
+  "lastPrompt": true
+}
+```
+
+| Key | Turns off |
+| --- | --------- |
+| `project` | The project name (line 1) |
+| `branch` | The git branch (line 1) |
+| `model` | The model name (line 1) — takes `effort` with it |
+| `effort` | Just the `· xhigh` effort suffix, keeping the model name |
+| `context` | The context bar (line 1) |
+| `rateLimits` | The `current:` / `weekly:` usage bars (line 2) |
+| `pace` | The pace arrow (line 2) |
+| `resets` | The reset-times row (line 3) |
+| `caveman` | The caveman badge (line 3) |
+| `lastPrompt` | The `❯ your last prompt…` row |
+
+`config.json` is **gitignored**, so your choices survive a `git pull` and never get published. Any
+key you leave out keeps its default (`true`), and a missing or malformed file just means "show
+everything". Changes apply on the next statusline render — no restart needed.
+
+`lastPrompt` needs the last-prompt hooks from [`hooks/`](../hooks/) to be installed; without them
+that row simply never appears.
 
 ## Install
 

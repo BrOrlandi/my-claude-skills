@@ -11,6 +11,36 @@ const { execSync } = require('child_process');
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// Which segments to render. Every one is on by default; `config.json` next to
+// this file (gitignored, see config.example.json) turns individual ones off.
+// The file is read through the install symlink's real path, so it survives a
+// `git pull` in the repo.
+const DEFAULT_CONFIG = {
+  project: true,
+  branch: true,
+  model: true,
+  effort: true,
+  context: true,
+  rateLimits: true,
+  pace: true,
+  resets: true,
+  caveman: true,
+  lastPrompt: true,
+};
+
+function readConfig() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
+    const out = { ...DEFAULT_CONFIG };
+    for (const key of Object.keys(DEFAULT_CONFIG)) {
+      if (typeof raw[key] === 'boolean') out[key] = raw[key];
+    }
+    return out;
+  } catch (e) {
+    return { ...DEFAULT_CONFIG };
+  }
+}
+
 function formatTime(date) {
   let h = date.getHours();
   const m = date.getMinutes();
@@ -100,6 +130,7 @@ process.stdin.on('data', chunk => (input += chunk));
 process.stdin.on('end', () => {
   clearTimeout(stdinTimeout);
   try {
+    const cfg = readConfig();
     const data = JSON.parse(input);
     const model = data.model?.display_name || 'Claude';
     const dir = data.workspace?.current_dir || process.cwd();
@@ -111,17 +142,17 @@ process.stdin.on('end', () => {
     const project = path.basename(projectDir);
 
     // Column 2: git branch
-    const branch = gitBranch(dir);
+    const branch = cfg.branch ? gitBranch(dir) : null;
 
     // Column 3: model · effort
-    const effort = readEffort();
+    const effort = cfg.effort ? readEffort() : null;
     const modelSegment = effort ? `${model} · ${effort}` : model;
 
     // Column 4: context bar
     const acw = parseInt(process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW || '0', 10);
     const AUTO_COMPACT_BUFFER_PCT = acw > 0 ? Math.min(100, (acw / totalCtx) * 100) : 16.5;
     let ctx = '';
-    if (remaining != null) {
+    if (cfg.context && remaining != null) {
       const usableRemaining = Math.max(0, ((remaining - AUTO_COMPACT_BUFFER_PCT) / (100 - AUTO_COMPACT_BUFFER_PCT)) * 100);
       const used = Math.max(0, Math.min(100, Math.round(100 - usableRemaining)));
       const filled = Math.floor(used / 10);
@@ -140,9 +171,9 @@ process.stdin.on('end', () => {
 
     const sep = ' \x1b[2m│\x1b[0m ';
     const parts = [
-      `\x1b[36m${project}\x1b[0m`,
+      cfg.project ? `\x1b[36m${project}\x1b[0m` : null,
       branch ? `\x1b[35m${branch}\x1b[0m` : null,
-      `\x1b[2m${modelSegment}\x1b[0m`,
+      cfg.model ? `\x1b[2m${modelSegment}\x1b[0m` : null,
       ctx || null,
     ].filter(Boolean);
 
@@ -162,8 +193,8 @@ process.stdin.on('end', () => {
       if (fh && typeof fh.used_percentage === 'number') {
         const pct = Math.round(fh.used_percentage);
         const color = colorByPct(pct);
-        limParts.push(`\x1b[2mcurrent:\x1b[0m ${color}${dotBar(pct)} ${pct}%\x1b[0m`);
-        if (typeof fh.resets_at === 'number') {
+        if (cfg.rateLimits) limParts.push(`\x1b[2mcurrent:\x1b[0m ${color}${dotBar(pct)} ${pct}%\x1b[0m`);
+        if (cfg.resets && typeof fh.resets_at === 'number') {
           const d = new Date(fh.resets_at * 1000);
           const rem = formatRemaining(fh.resets_at - now);
           resetParts.push(`\x1b[2mresets ${formatTime(d)} (${rem})\x1b[0m`);
@@ -173,19 +204,19 @@ process.stdin.on('end', () => {
       if (sd && typeof sd.used_percentage === 'number') {
         const pct = Math.round(sd.used_percentage);
         // Colored variant: limParts.push(`\x1b[2mweekly:\x1b[0m ${colorByPct(pct)}${dotBar(pct)} ${pct}%\x1b[0m`);
-        limParts.push(`\x1b[2mweekly: ${dotBar(pct)} ${pct}%\x1b[0m`);
+        if (cfg.rateLimits) limParts.push(`\x1b[2mweekly: ${dotBar(pct)} ${pct}%\x1b[0m`);
         if (typeof sd.resets_at === 'number') {
           const d = new Date(sd.resets_at * 1000);
           const diff = sd.resets_at - now;
           const label = diff < 24 * 3600
             ? formatTime(d)
             : `${WEEKDAYS[d.getDay()]}, ${formatTime(d)}`;
-          resetParts.push(`\x1b[2mresets ${label}\x1b[0m`);
+          if (cfg.resets) resetParts.push(`\x1b[2mresets ${label}\x1b[0m`);
 
           // Pace: project weekly usage at current daily burn rate
           const WEEK_SEC = 7 * 24 * 3600;
           const elapsedSec = Math.max(0, WEEK_SEC - diff);
-          if (elapsedSec > 3600) {
+          if (cfg.pace && elapsedSec > 3600) {
             const projected = sd.used_percentage * (WEEK_SEC / elapsedSec);
             let paceColor, arrow;
             if (projected < 95) { paceColor = '\x1b[32m'; arrow = '↓'; }
@@ -201,31 +232,35 @@ process.stdin.on('end', () => {
     }
 
     // Caveman badge — row 3. Append to resets line if present, else emit own line.
-    const cavemanMode = readCavemanMode();
-    const label = cavemanMode ? `caveman ${cavemanMode}` : 'caveman off';
-    const badge = `\x1b[2m${label}\x1b[0m`;
-    const lines = output.split('\n');
-    if (lines.length >= 3) {
-      lines[2] = `${lines[2]} \x1b[2m|\x1b[0m ${badge}`;
-      output = lines.join('\n');
-    } else {
-      while (output.split('\n').length < 2) output += '\n';
-      output += '\n' + badge;
+    if (cfg.caveman) {
+      const cavemanMode = readCavemanMode();
+      const label = cavemanMode ? `caveman ${cavemanMode}` : 'caveman off';
+      const badge = `\x1b[2m${label}\x1b[0m`;
+      const lines = output.split('\n');
+      if (lines.length >= 3) {
+        lines[2] = `${lines[2]} \x1b[2m|\x1b[0m ${badge}`;
+        output = lines.join('\n');
+      } else {
+        while (output.split('\n').length < 2) output += '\n';
+        output += '\n' + badge;
+      }
     }
 
     // Last prompt — appended as last line. Read file written by UserPromptSubmit hook.
-    try {
-      const sid = data.session_id;
-      if (sid) {
-        const promptPath = path.join(os.homedir(), '.claude', 'last-prompts', `${sid}.txt`);
-        const raw = fs.readFileSync(promptPath, 'utf8').trim();
-        if (raw) {
-          const oneLine = raw.replace(/\s+/g, ' ');
-          const trimmed = oneLine.length > 120 ? oneLine.slice(0, 117) + '...' : oneLine;
-          output += `\n\x1b[2m❯ ${trimmed}\x1b[0m`;
+    if (cfg.lastPrompt) {
+      try {
+        const sid = data.session_id;
+        if (sid) {
+          const promptPath = path.join(os.homedir(), '.claude', 'last-prompts', `${sid}.txt`);
+          const raw = fs.readFileSync(promptPath, 'utf8').trim();
+          if (raw) {
+            const oneLine = raw.replace(/\s+/g, ' ');
+            const trimmed = oneLine.length > 120 ? oneLine.slice(0, 117) + '...' : oneLine;
+            output += `\n\x1b[2m❯ ${trimmed}\x1b[0m`;
+          }
         }
-      }
-    } catch (e) { /* no prompt yet */ }
+      } catch (e) { /* no prompt yet */ }
+    }
 
     process.stdout.write(output);
   } catch (e) {
