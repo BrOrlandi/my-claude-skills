@@ -20,6 +20,13 @@ History starts here: earlier work is in the git log, not in this file.
   working and releases it the moment the turn ends. `./install.sh` links the scripts into
   `~/.claude/hooks/`; wiring them up stays your call. RTK's command-rewrite hook is documented there
   too, without vendoring a copy that would go stale.
+- **Install by prompt.** The README now carries a copy-paste prompt: hand it to Claude Code (or
+  Codex) and it runs an interactive install from `INSTALL_CLAUDE.md` — listing every skill with what
+  it does before asking which ones you want, playing the notification sound so you can hear it
+  before deciding, previewing the statusline with your own data, and skipping the macOS-only pieces
+  when you are not on a Mac. It never touches `~/.claude/settings.json` without showing you the
+  block first, and anything already installed gets diffed against GitHub so you can choose what to
+  update. A second prompt handles just the update pass.
 - **The statusline is configurable.** `statusline/config.json` (gitignored, template in
   `config.example.json`) turns individual rows off — project, branch, model, effort, context bar,
   rate-limit bars, pace arrow, reset times, caveman badge, last prompt. Leave it out and you get
