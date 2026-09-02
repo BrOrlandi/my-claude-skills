@@ -1,13 +1,24 @@
 # Changelog
 
-What changed in this collection of Claude Code skills, commands, statusline and sounds, written
+What changed in this collection of Claude Code skills, commands, hooks and statusline, written
 for whoever installs them: what a skill now does differently, not how it was implemented.
 
 Entries are grouped by the day the work landed, newest first. The collection carries **no version
 number and no tags** — you install whatever `main` has, with `./install.sh`
-(see [Installation](README.md#installation)).
+(see [Install](README.md#install-by-prompt)).
 
 History starts here: earlier work is in the git log, not in this file.
+
+## 2026-09-01
+
+### Changed
+
+- **`pr-comments` skill** — replies to reviewers are no longer walls of text. An inline thread
+  reply is now capped at 1 to 3 sentences that state the outcome only ("fixed, here", "declined,
+  this rule says so"), with no headings, lists or rehashing of what the reviewer just wrote. The
+  reasoning that used to bloat those replies moves to a single PR-level comment per round, itself
+  kept to one line per item. When a reviewer comes back on a thread you already answered, the skill
+  now spots that follow-up and lifts the cap so the doubt can be settled properly.
 
 ## 2026-08-21
 
