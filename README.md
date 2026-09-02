@@ -26,13 +26,16 @@ First work out which agent you are, and pick the matching playbook:
 - Codex CLI   → https://raw.githubusercontent.com/BrOrlandi/my-claude-skills/main/INSTALL_CODEX.md
 
 Read that file — fetch the URL, or clone the repo and read it from the clone — and follow it step by
-step. It is an interactive install, so as you go:
+step. Check which operating system I am on before offering anything platform-specific, and adapt to
+it: skip the parts that don't apply, and use the commands my system actually has. It is an
+interactive install, so as you go:
 
 - ask me what to install at each stage: skills, commands, hooks + sounds, statusline;
 - for the skills, list every one with a one-line description of what it does, then ask whether I
   want all of them, a subset I name, or to be walked through them one at a time;
 - for the hooks, explain what each one does before asking, and offer to play the notification sound
-  so I can hear it. Only offer the macOS-only ones if I am on a Mac;
+  with a player my OS has so I can hear it. Don't offer hooks that only work on another OS — say
+  they were skipped and why;
 - for the statusline, show me a live preview and let me choose which rows to display;
 - never edit ~/.claude/settings.json without showing me the exact block first, and back the file up
   before the first edit;

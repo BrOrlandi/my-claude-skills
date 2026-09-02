@@ -49,8 +49,12 @@ ls ~/.claude/skills 2>/dev/null | head -30
 
 What each result means for later:
 
-- **not macOS** → skip the caffeinate hooks entirely and warn that the sound hooks need a different
-  player (`paplay` / `aplay` on Linux) than the `afplay` command in the examples.
+- **the OS from `uname -s`** decides every platform-specific step below — never assume macOS. On
+  `Darwin` everything applies as written. Anything else (Linux, WSL, Git Bash on Windows) → skip the
+  caffeinate hooks entirely, and swap the `afplay` in the sound examples for a player that exists
+  there: `paplay` or `aplay` on Linux, or
+  `powershell -c (New-Object Media.SoundPlayer '<path>').PlaySync()` on Windows. Check which one is
+  installed (`command -v paplay aplay`) before offering the sound hooks at all.
 - **no `node`** → the statusline can't run. Offer to continue without it.
 - **no `jq`** → the last-prompt hooks can't run, and you'll have to edit `settings.json` with a
   different tool. Mention it now, decide in Step 4.
@@ -195,18 +199,22 @@ Linking does nothing on its own — the hook only fires once its entry is in
 Pitch: *"Claude plays a sound when it needs you — a permission prompt, or when it's been sitting
 idle waiting for your answer. Useful when you send it off on a long task and go do something else."*
 
-**Offer to play it** before they decide (macOS):
+**Offer to play it** before they decide, using the player for their OS (from Step 0) — `afplay` on
+macOS, `paplay`/`aplay` on Linux, `powershell -c (New-Object Media.SoundPlayer '<path>').PlaySync()`
+on Windows:
 
 ```bash
-afplay ~/.claude/sounds/bell-notification.wav
+afplay ~/.claude/sounds/bell-notification.wav        # macOS
+paplay ~/.claude/sounds/bell-notification.wav        # Linux (PulseAudio); aplay for ALSA
 ```
 
 If the file isn't linked yet, play it straight from the repo:
-`afplay $REPO/hooks/sounds/bell-notification.wav`. Play the second one too if they're curious —
+`<player> $REPO/hooks/sounds/bell-notification.wav`. Play the second one too if they're curious —
 `starwars/imperial-march-beep.wav`, which fires right before the context window gets compacted.
 
-Then ask: wire both, only the notification bell, or skip. Not on macOS? Offer the same hooks with
-`paplay`/`aplay` and say it's untested there.
+Then ask: wire both, only the notification bell, or skip. Write the hook command with their player,
+not with `afplay`, and say the non-macOS players are untested here. No working player on the
+machine → say so and skip the sound hooks rather than wiring a command that fails silently.
 
 ### 4b. Last prompt
 
@@ -361,7 +369,7 @@ Report in a short list:
 - what was installed (skills, commands, hooks, statusline) and where the symlinks point
 - what was **skipped** and how to add it later (`./install.sh`, or re-run this install prompt)
 - anything still needed by hand: a missing `jq`/`node`, `pr/config.json` for default reviewers,
-  a non-macOS sound player
+  a sound player for their OS
 - **restart Claude Code** — skills, hooks and the statusline are read at session start
 
 Then a one-liner on staying current:
