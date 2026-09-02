@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$HOME/.claude/skills"
 COMMANDS_DIR="$HOME/.claude/commands"
 CLAUDE_DIR="$HOME/.claude"
+HOOKS_DIR="$HOME/.claude/hooks"
 
 GREEN='\033[0;32m'
 NC='\033[0m'
@@ -21,6 +22,7 @@ for skill_dir in "$SCRIPT_DIR"/*/; do
   [[ "$skill_name" == .* ]] && continue
   [[ "$skill_name" == "commands" ]] && continue
   [[ "$skill_name" == "statusline" ]] && continue
+  [[ "$skill_name" == "hooks" ]] && continue
   [ ! -f "$skill_dir/SKILL.md" ] && continue
 
   target="$SKILLS_DIR/$skill_name"
@@ -91,8 +93,39 @@ if [ -f "$STATUSLINE_SRC" ]; then
   fi
 fi
 
+# Install hook scripts
+HOOK_SCRIPTS_SRC="$SCRIPT_DIR/hooks/scripts"
+
+if [ -d "$HOOK_SCRIPTS_SRC" ]; then
+  mkdir -p "$HOOKS_DIR"
+
+  hooks_already_installed=0
+
+  for hook_file in "$HOOK_SCRIPTS_SRC"/*.sh; do
+    [ ! -f "$hook_file" ] && continue
+    hook_name="$(basename "$hook_file")"
+    target="$HOOKS_DIR/$hook_name"
+
+    if [ -L "$target" ]; then
+      if [ "$(readlink "$target")" = "$hook_file" ]; then
+        hooks_already_installed=$((hooks_already_installed + 1))
+        continue
+      fi
+      rm "$target"
+    elif [ -f "$target" ]; then
+      echo "Skipping hook $hook_name (file already exists, not a symlink)"
+      continue
+    fi
+
+    ln -s "$hook_file" "$target"
+    echo -e "${GREEN}New Hook script installed $hook_name!${NC}"
+  done
+
+  [ $hooks_already_installed -gt 0 ] && echo "All other hook scripts already installed."
+fi
+
 # Install sounds
-SOUNDS_SRC="$SCRIPT_DIR/sounds"
+SOUNDS_SRC="$SCRIPT_DIR/hooks/sounds"
 SOUNDS_TARGET="$CLAUDE_DIR/sounds"
 
 if [ -d "$SOUNDS_SRC" ]; then
@@ -170,3 +203,6 @@ fi
 
 echo ""
 echo "Done! Skills and commands are now available globally in Claude Code."
+echo "Hook scripts and sounds are linked, but stay inactive until you wire them up in"
+echo "~/.claude/settings.json - see hooks/README.md (or run the interactive install prompt"
+echo "from the README, which does it for you)."

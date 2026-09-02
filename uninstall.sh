@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$HOME/.claude/skills"
 COMMANDS_DIR="$HOME/.claude/commands"
 CLAUDE_DIR="$HOME/.claude"
+HOOKS_DIR="$HOME/.claude/hooks"
 
 # Remove skill symlinks
 for skill_dir in "$SCRIPT_DIR"/*/; do
@@ -13,6 +14,7 @@ for skill_dir in "$SCRIPT_DIR"/*/; do
   [[ "$skill_name" == .* ]] && continue
   [[ "$skill_name" == "commands" ]] && continue
   [[ "$skill_name" == "statusline" ]] && continue
+  [[ "$skill_name" == "hooks" ]] && continue
   [ ! -f "$skill_dir/SKILL.md" ] && continue
 
   target="$SKILLS_DIR/$skill_name"
@@ -46,8 +48,23 @@ if [ -L "$STATUSLINE_TARGET" ] && [ "$(readlink "$STATUSLINE_TARGET")" = "$STATU
   echo "Removed statusline: $STATUSLINE_TARGET"
 fi
 
+# Remove hook script symlinks
+HOOK_SCRIPTS_SRC="$SCRIPT_DIR/hooks/scripts"
+
+if [ -d "$HOOK_SCRIPTS_SRC" ]; then
+  for hook_file in "$HOOK_SCRIPTS_SRC"/*.sh; do
+    [ ! -f "$hook_file" ] && continue
+    target="$HOOKS_DIR/$(basename "$hook_file")"
+
+    if [ -L "$target" ] && [ "$(readlink "$target")" = "$hook_file" ]; then
+      rm "$target"
+      echo "Removed hook script: $target"
+    fi
+  done
+fi
+
 # Remove sound symlinks
-SOUNDS_SRC="$SCRIPT_DIR/sounds"
+SOUNDS_SRC="$SCRIPT_DIR/hooks/sounds"
 SOUNDS_TARGET="$CLAUDE_DIR/sounds"
 
 if [ -d "$SOUNDS_SRC" ]; then
@@ -81,3 +98,4 @@ fi
 
 echo ""
 echo "Done! Symlinks removed."
+echo "The hooks and statusLine entries in ~/.claude/settings.json are yours to remove separately."

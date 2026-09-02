@@ -11,8 +11,21 @@ History starts here: earlier work is in the git log, not in this file.
 
 ## 2026-09-01
 
+### Added
+
+- **Hooks are part of the collection now.** A new `hooks/` folder ships the scripts, the sounds they
+  play and the exact `settings.json` blocks that turn them on: a notification bell when Claude needs
+  you, the Imperial March right before a context compaction, last-prompt capture that feeds the
+  statusline, and — on macOS only — a caffeinate guard that keeps the Mac awake while Claude is
+  working and releases it the moment the turn ends. `./install.sh` links the scripts into
+  `~/.claude/hooks/`; wiring them up stays your call. RTK's command-rewrite hook is documented there
+  too, without vendoring a copy that would go stale.
+
 ### Changed
 
+- The sounds moved from `sounds/` to `hooks/sounds/`, so it is obvious what plays them. They still
+  land in `~/.claude/sounds/` with the same names — re-run `./install.sh` after pulling and the old
+  symlinks are replaced.
 - **`pr-comments` skill** — replies to reviewers are no longer walls of text. An inline thread
   reply is now capped at 1 to 3 sentences that state the outcome only ("fixed, here", "declined,
   this rule says so"), with no headings, lists or rehashing of what the reviewer just wrote. The
