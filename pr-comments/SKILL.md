@@ -34,7 +34,7 @@ Process each open comment **autonomously** using these decision criteria:
 For each comment:
 
 - **If fixing**: Apply the code change. Do NOT resolve the thread yet — resolution happens after commit+push in Phase 2.
-- **If declining**: Reply on the thread explaining the reasoning, but do **not** resolve the thread (let the reviewer decide).
+- **If declining**: Reply on the thread with the reason and the rule that settles it — 1 to 3 sentences, per **Reply Style** below — but do **not** resolve the thread (let the reviewer decide). Anything longer goes in the Phase 3 PR comment, not the thread.
 - **If asking**: Present what the reviewer said, what the code does, and why it's ambiguous. Wait for user confirmation via AskUserQuestion before proceeding. Never guess business rules — ask first. Apply only after approval.
 
 ### Phase 2: Commit and Push
@@ -46,7 +46,7 @@ After processing all comments in the current batch:
 
 ### Phase 3: Comment on the PR
 
-Post a summary comment on the PR mentioning the reviewer:
+Post the round's single PR-level comment, mentioning the reviewer. This is where the detail lives that the inline replies were kept out of (see **Reply Style**) — one line per item, prose only for the fixes whose reasoning the reviewer actually needs:
 
 ```
 @coderabbitai[bot] Addressed review comments:
@@ -113,6 +113,65 @@ Commit: def5678
 ```
 
 ---
+
+## Reply Style (all modes)
+
+Reviewers read thread replies in a narrow inline column, one after another. Keep those replies
+short and put the long form in a single PR-level comment.
+
+### Inline thread replies — 1 to 3 sentences
+
+A reply on a review thread states the outcome and nothing else:
+
+- **Fixed** — what changed and where: `Fixed — null check moved above the destructuring (src/auth.ts:45).`
+- **Declined** — the reason plus the rule that settles it: `Not applying: CLAUDE.md:18 forbids barrel exports.`
+- **Question** — the direct answer, in one sentence when one sentence answers it.
+
+Hard rules for inline replies:
+
+- Cap at 3 sentences / ~50 words. No headings, no bullet lists, no tables.
+- Code only when the code *is* the answer, and then 1–3 lines at most.
+- Do not restate the reviewer's comment back to them — they wrote it.
+- No rationale chain, no alternatives you considered, no praise preamble ("great catch"), no tour
+  of the surrounding design. If it wants a section header, it does not belong in a thread.
+- Never paste the Step 4 analysis into a thread. That analysis is for you and the user.
+
+### The PR-level comment carries the detail
+
+Whatever does not fit the cap — reasoning behind a non-obvious fix, a trade-off, an approach
+spanning several files, context the reviewer needs to judge the change — goes in **one** PR-level
+comment (`gh pr comment <NUMBER> --body "..."`), never as a thread reply. One comment per round,
+not one per topic.
+
+Keep that comment lean as well: one line per item, and prose only where the reasoning genuinely
+needs it (2–4 sentences for that item). No essay, no pasted diff, no repeating what the commit
+message already says.
+
+```
+@reviewer Addressed review comments:
+
+**Fixed (N):**
+- file.ts:45 — null check moved above the destructuring
+- file2.ts:80 — optional chaining
+
+**Declined (M):**
+- file3.ts:30 — barrel export; CLAUDE.md:18 forbids them
+
+**Why the retry loop is capped at 3 (file4.ts:12):** the upstream API rate-limits at 5 req/s and
+a longer backoff would blow the 30s request budget. Raising the cap needs the timeout raised too.
+
+Commit: abc1234
+```
+
+Post this comment in normal mode too whenever at least one fix needed more explanation than the
+inline cap allows. If every reply fit the cap, skip it — no summary comment for its own sake.
+
+### When to go deeper
+
+If the reviewer replies **again** on a thread you already answered — pushing back, asking for
+clarification, or repeating the point — the cap lifts for that thread. Explain in full: the
+reasoning, the constraint, the code path, whatever settles the question. Stay on the doubt they
+actually raised; a longer reply is not licence to re-explain the whole change.
 
 ## Step 1: Identify the PR
 
@@ -186,6 +245,7 @@ Collect all review feedback automatically — never ask the user before fetching
 - **Skip resolved threads** — only process threads where `isResolved` is `false`.
 - **Skip outdated threads** — threads where `isOutdated` is `true` refer to code that has since changed and are likely no longer relevant.
 - **Detect already-addressed comments** — for each unresolved thread, check `comments.nodes` for replies authored by the PR author (compare `author.login` against the PR author from Step 1). If the PR author has replied to the thread, mark it as **"likely addressed"** and deprioritize it. These comments should be collected separately and presented at the end of the comment list (in Step 5) with a note: _"These may already be addressed — verify only."_ They still appear in the analysis but are processed last and with the expectation that no further action is needed.
+- **Detect a reviewer follow-up** — if the last comment in the thread is from someone other than the PR author *and* the PR author already replied earlier in that thread, the reviewer came back on an answer that did not land. Mark the thread **↩ follow-up**: it is not "likely addressed", it is the case where the reply cap lifts (see **Reply Style → When to go deeper**).
 - **Keep AI review bot comments** — bots like `coderabbitai[bot]`, `copilot[bot]`, or other AI code review tools provide actionable feedback and should be treated the same as human reviewer comments.
 - Ignore **non-review bots** (e.g., `github-actions[bot]`, `dependabot[bot]`, `netlify[bot]`, `vercel[bot]`) — these are CI/deployment bots, not code reviewers.
 - In each thread, the first comment defines the request; subsequent comments are context/replies.
@@ -369,7 +429,7 @@ Process remaining comments (those not already batch-resolved in Step 5.9) **one 
    - **no** — Skip this comment entirely
    - **modify** — Let the user adjust the proposed change before applying
    - **skip** — Skip for now, come back later
-   - **reply-only** — Don't change code; draft a reply to the reviewer instead
+   - **reply-only** — Don't change code; draft a reply to the reviewer instead (1 to 3 sentences, per **Reply Style**)
 
 5. **Enter Plan mode** when any of these conditions apply:
    - The change spans **multiple files**

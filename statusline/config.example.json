@@ -1,0 +1,12 @@
+{
+  "project": true,
+  "branch": true,
+  "model": true,
+  "effort": true,
+  "context": true,
+  "rateLimits": true,
+  "pace": true,
+  "resets": true,
+  "caveman": true,
+  "lastPrompt": true
+}

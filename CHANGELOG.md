@@ -1,13 +1,48 @@
 # Changelog
 
-What changed in this collection of Claude Code skills, commands, statusline and sounds, written
+What changed in this collection of Claude Code skills, commands, hooks and statusline, written
 for whoever installs them: what a skill now does differently, not how it was implemented.
 
 Entries are grouped by the day the work landed, newest first. The collection carries **no version
 number and no tags** — you install whatever `main` has, with `./install.sh`
-(see [Installation](README.md#installation)).
+(see [Install](README.md#install-by-prompt)).
 
 History starts here: earlier work is in the git log, not in this file.
+
+## 2026-09-01
+
+### Added
+
+- **Hooks are part of the collection now.** A new `hooks/` folder ships the scripts, the sounds they
+  play and the exact `settings.json` blocks that turn them on: a notification bell when Claude needs
+  you, the Imperial March right before a context compaction, last-prompt capture that feeds the
+  statusline, and — on macOS only — a caffeinate guard that keeps the Mac awake while Claude is
+  working and releases it the moment the turn ends. `./install.sh` links the scripts into
+  `~/.claude/hooks/`; wiring them up stays your call. RTK's command-rewrite hook is documented there
+  too, without vendoring a copy that would go stale.
+- **Install by prompt.** The README now carries a copy-paste prompt: hand it to Claude Code (or
+  Codex) and it runs an interactive install from `INSTALL_CLAUDE.md` — listing every skill with what
+  it does before asking which ones you want, playing the notification sound so you can hear it
+  before deciding, previewing the statusline with your own data, and skipping the macOS-only pieces
+  when you are not on a Mac. It never touches `~/.claude/settings.json` without showing you the
+  block first, and anything already installed gets diffed against GitHub so you can choose what to
+  update. A second prompt handles just the update pass.
+- **The statusline is configurable.** `statusline/config.json` (gitignored, template in
+  `config.example.json`) turns individual rows off — project, branch, model, effort, context bar,
+  rate-limit bars, pace arrow, reset times, caveman badge, last prompt. Leave it out and you get
+  everything, as before.
+
+### Changed
+
+- The sounds moved from `sounds/` to `hooks/sounds/`, so it is obvious what plays them. They still
+  land in `~/.claude/sounds/` with the same names — re-run `./install.sh` after pulling and the old
+  symlinks are replaced.
+- **`pr-comments` skill** — replies to reviewers are no longer walls of text. An inline thread
+  reply is now capped at 1 to 3 sentences that state the outcome only ("fixed, here", "declined,
+  this rule says so"), with no headings, lists or rehashing of what the reviewer just wrote. The
+  reasoning that used to bloat those replies moves to a single PR-level comment per round, itself
+  kept to one line per item. When a reviewer comes back on a thread you already answered, the skill
+  now spots that follow-up and lifts the cap so the doubt can be settled properly.
 
 ## 2026-08-21
 

@@ -1,6 +1,76 @@
 # My Claude Skills
 
-A collection of reusable [Claude Code](https://claude.ai/claude-code) skills and commands.
+A personal collection of [Claude Code](https://claude.ai/claude-code) **skills**, **commands**,
+**hooks** and a custom **statusline** — installed as symlinks into `~/.claude/`, so they work in
+every project and update with a `git pull`.
+
+| Part | What it gives you |
+| ---- | ----------------- |
+| [**Skills**](#skills) | Workflow skills Claude can run or trigger on its own — commits, pull requests, Jira, refactors, security review, releases |
+| [**Commands**](#commands) | Slash commands you type yourself |
+| [**Hooks**](#hooks) | Sounds when Claude needs you, last-prompt capture for the statusline, and (macOS) keeping the Mac awake while it works |
+| [**Statusline**](#statusline) | Project · branch · model · context bar · rate-limit usage · your last prompt — every row optional |
+| [**Third-party skills**](#third-party-skills) | Community skills this repo tracks as separate clones |
+
+## Install by prompt
+
+The install is interactive: it asks what you want, explains each piece before asking, and never
+edits your settings without showing you the change. Paste this into Claude Code (or Codex) and let
+it drive:
+
+```text
+Install the skills, hooks and statusline from https://github.com/BrOrlandi/my-claude-skills.
+
+First work out which agent you are, and pick the matching playbook:
+- Claude Code → https://raw.githubusercontent.com/BrOrlandi/my-claude-skills/main/INSTALL_CLAUDE.md
+- Codex CLI   → https://raw.githubusercontent.com/BrOrlandi/my-claude-skills/main/INSTALL_CODEX.md
+
+Read that file — fetch the URL, or clone the repo and read it from the clone — and follow it step by
+step. It is an interactive install, so as you go:
+
+- ask me what to install at each stage: skills, commands, hooks + sounds, statusline;
+- for the skills, list every one with a one-line description of what it does, then ask whether I
+  want all of them, a subset I name, or to be walked through them one at a time;
+- for the hooks, explain what each one does before asking, and offer to play the notification sound
+  so I can hear it. Only offer the macOS-only ones if I am on a Mac;
+- for the statusline, show me a live preview and let me choose which rows to display;
+- never edit ~/.claude/settings.json without showing me the exact block first, and back the file up
+  before the first edit;
+- if something is already installed but differs from the GitHub version, show me what changed and
+  ask whether to update it.
+
+Install nothing I have not agreed to.
+```
+
+Already installed and want to catch up with what changed since? Use this one instead:
+
+```text
+Update my install of https://github.com/BrOrlandi/my-claude-skills.
+
+Pull the repo (find my clone, or clone it if I don't have one), then follow the "Already installed
+but out of date" step of INSTALL_CLAUDE.md: show me what changed since my last update, diff anything
+I have as a real file instead of a symlink, and ask before updating each one. Then tell me which new
+skills, hooks or statusline options landed that I don't have yet, and offer to install them.
+```
+
+### Manual install
+
+Same thing, without the questions — installs everything:
+
+```bash
+git clone https://github.com/BrOrlandi/my-claude-skills.git ~/Projects/my-claude-skills
+cd ~/Projects/my-claude-skills
+./update-thirdparty.sh  # clone the third-party skill repos
+./install.sh            # symlink skills, commands, hook scripts, sounds, statusline
+```
+
+`install.sh` creates symlinks in `~/.claude/skills/`, `~/.claude/commands/`, `~/.claude/hooks/` and
+`~/.claude/sounds/`, plus `~/.claude/statusline.js`. Skills and commands are live after a restart;
+**hooks and the statusline also need an entry in `~/.claude/settings.json`** — see
+[`hooks/README.md`](hooks/README.md) and [`statusline/README.md`](statusline/README.md), or let the
+install prompt above write them for you.
+
+Codex CLI users: [INSTALL_CODEX.md](INSTALL_CODEX.md).
 
 ## Skills
 
@@ -8,6 +78,7 @@ A collection of reusable [Claude Code](https://claude.ai/claude-code) skills and
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------- |
 | **commit**              | Create structured git commits using conventional commit format with branch and PR checks                                | Autonomous |
 | **pr**                  | Create or update GitHub pull requests against the repo's default base branch (`main`, `develop`, etc.), using the commit workflow when local changes exist. Supports `review` to approve title/body before creating | Autonomous |
+| **release**             | Establish and then run a repository's release convention — version bump, changelog, tag, GitHub release, store notes. Records the convention in `.claude/release.json` on first run | Autonomous |
 | **refactor-components** | Find large React components (.tsx/.jsx) and refactor them into smaller, focused components                              | Explicit only |
 | **refactor-code**       | Find large non-React code files (.ts/.js) and refactor them into smaller, focused files (routes, services, utils, etc.) | Explicit only |
 | **jira**                | Interact with Jira using the jira CLI and REST API. View, create, list, transition, and comment on issues with proper @mentions | Autonomous |
@@ -48,29 +119,6 @@ cp pr/config.example.json pr/config.json
 Repos owned by an org that isn't listed get no reviewers. See
 [pr/references/config-format.md](pr/references/config-format.md) for the full format.
 
-## Third-Party Skills
-
-Curated skills from the community, cloned as independent repositories into `thirdparty/`. See [THIRDPARTY.md](THIRDPARTY.md) for instructions on adding new ones.
-
-| Skill                   | Description                                                        | Repository |
-| ----------------------- | ------------------------------------------------------------------ | ---------- |
-| **frontend-slides**     | Create animation-rich HTML presentations without design expertise  | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) |
-
-## Statusline
-
-A custom Claude Code statusline lives in [`statusline/`](statusline/). It shows `project │ branch │ model · effort │ context-bar`. `install.sh` symlinks it to `~/.claude/statusline.js`; you enable it by adding a `statusLine` block to `~/.claude/settings.json` (see [`statusline/README.md`](statusline/README.md)).
-
-For Codex, the equivalent native status-line configuration lives in [`codex-statusline/`](codex-statusline/). It configures `~/.codex/config.toml` with project, branch, model/reasoning, context usage, and usage-limit items.
-
-## Sounds
-
-Notification sounds played by Claude Code hooks live in [`sounds/`](sounds/). `install.sh` symlinks each `.wav` into `~/.claude/sounds/` (preserving subfolders); you enable them by adding hook entries to `~/.claude/settings.json`. See [`sounds/README.md`](sounds/README.md) for the setup.
-
-| Sound | Hook | When it plays |
-| ----- | ---- | ------------- |
-| `bell-notification.wav` | `Notification` | Claude needs your attention (permission prompt, idle input) |
-| `starwars/imperial-march-beep.wav` | `PreCompact` | Right before the context window is compacted |
-
 ## Commands
 
 The git workflows now live in the `commit` and `pr` skills (invoke with `/commit` and `/pr`, or let Claude trigger them autonomously). The remaining commands:
@@ -79,26 +127,68 @@ The git workflows now live in the `commit` and `pr` skills (invoke with `/commit
 | ----------------------- | ------------------------------------------------------------------------------------------- |
 | **/sync-env-to-github** | Sync environment variables to GitHub environment secrets (Production/staging)               |
 
-## Installation
+## Hooks
 
-Clone the repository and run the install script to symlink all skills and commands to your personal Claude Code directory:
+Hooks run a command on a session event — a prompt submitted, a tool about to run, the turn ending.
+Everything this repo ships lives in [`hooks/`](hooks/): the scripts, the sounds they play, and the
+`settings.json` blocks that wire them up. They are opt-in — a symlink alone does nothing.
 
-```bash
-git clone https://github.com/BrOrlandi/my-claude-skills.git ~/Projects/my-claude-skills
-cd ~/Projects/my-claude-skills
-./update-thirdparty.sh  # Clone all third-party skill repos
-./install.sh            # Symlink all skills and commands
+| Hook group | Event(s) | Platform | What it does |
+| ---------- | -------- | -------- | ------------ |
+| **Sounds** | `Notification`, `PreCompact` | macOS (`afplay`) | Plays `bell-notification.wav` when Claude needs you, and the Imperial March beep right before a context compaction |
+| **Last prompt** | `UserPromptSubmit`, `SessionEnd` | any (needs `jq`) | Saves your last prompt locally so the statusline can show it back to you |
+| **Caffeinate** | `UserPromptSubmit`, `PreToolUse`, `Stop`, `SessionEnd` | macOS only | Keeps the Mac awake while Claude is working, and lets it sleep the moment the turn ends |
+| **RTK rewrite** | `PreToolUse` (Bash) | any, third-party | Optional: rewrites shell commands to their token-cheap [`rtk`](https://github.com/rtk-ai/rtk) equivalent. Documented here, installed from RTK |
+
+See [`hooks/README.md`](hooks/README.md) for what each one does in detail, the exact JSON, and how
+to merge it into an existing `settings.json`.
+
+## Statusline
+
+A custom Claude Code statusline lives in [`statusline/`](statusline/):
+
+```
+my-claude-skills │ main │ Claude Opus 5 (1M context) · xhigh │ ████░░░░░░ 45%
+current: ○○○○○○○○○○ 0% | weekly: ●●●●●○○○○○ 45% | pace: ↓
+resets 4:00pm (4h10m) | resets Thu, 4:00pm | caveman off
+❯ review the auth middleware and tell me what breaks under load
 ```
 
-This creates symlinks in `~/.claude/skills/` and `~/.claude/commands/`, making everything available globally across all your projects.
+Project, git branch, model + effort, a context bar that goes red before auto-compact, 5-hour and
+7-day rate-limit usage with a pace arrow, reset times, and the prompt you last sent (that last row
+needs the last-prompt hooks). **Every row can be turned off** in `statusline/config.json` — see
+[`statusline/README.md`](statusline/README.md).
 
-### Updating Third-Party Skills
+`install.sh` symlinks it to `~/.claude/statusline.js`; you enable it with a `statusLine` block in
+`~/.claude/settings.json`.
+
+For Codex, the equivalent native status-line configuration lives in
+[`codex-statusline/`](codex-statusline/): project, branch, model/reasoning, context usage and
+usage-limit items in `~/.codex/config.toml`.
+
+## Third-Party Skills
+
+Curated skills from the community, cloned as independent repositories into `thirdparty/`. See [THIRDPARTY.md](THIRDPARTY.md) for instructions on adding new ones.
+
+| Skill                   | Description                                                        | Repository |
+| ----------------------- | ------------------------------------------------------------------ | ---------- |
+| **frontend-slides**     | Create animation-rich HTML presentations without design expertise  | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) |
 
 ```bash
 ./update-thirdparty.sh
 ```
 
-This pulls the latest changes for all third-party skill repositories listed in `thirdparty-skills.json`.
+Pulls the latest changes for every third-party repository listed in `thirdparty-skills.json`.
+
+## Updating
+
+```bash
+cd ~/Projects/my-claude-skills
+git pull
+./install.sh   # only needed to pick up new skills, commands or hook scripts
+```
+
+Because everything is symlinked, `git pull` alone updates what you already have.
 
 ## Uninstall
 
@@ -107,6 +197,13 @@ cd ~/Projects/my-claude-skills
 ./uninstall.sh
 ```
 
+It removes only the symlinks that point back into this repo — local files are left alone, and the
+`hooks` / `statusLine` entries in `~/.claude/settings.json` are yours to remove.
+
 ## Adding to a specific project
 
 You can also copy individual skills/commands into a project's `.claude/skills/` or `.claude/commands/` directory if you prefer project-level installation.
+
+## Changelog
+
+What changed, grouped by day: [CHANGELOG.md](CHANGELOG.md).

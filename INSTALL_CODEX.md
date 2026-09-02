@@ -7,12 +7,34 @@ In Codex, the setup is split into two parts:
 - Skills are discovered from `~/.agents/skills/`
 - Slash commands are exposed through a local plugin declared in `~/.agents/plugins/`
 
+## Interactive install (agent-driven)
+
+**This section is a script for an agent.** Paste the install prompt from the
+[README](README.md#install-by-prompt) into Codex and it will follow the flow below, asking what you
+want at each stage. Everything after it is the manual, step-by-step version.
+
+Agent: follow [INSTALL_CLAUDE.md](INSTALL_CLAUDE.md) — same rules of engagement (nothing installed
+without a yes, explain before asking, diff whatever is already there, never clobber a local file) —
+with these substitutions:
+
+| Step | In Codex |
+| ---- | -------- |
+| Step 0 preflight | Also check `codex --version` and whether `~/.codex/config.toml` exists |
+| Step 2 skills | Symlink into `~/.agents/skills/<name>` instead of `~/.claude/skills/<name>`. Skip `skill-creator` — Codex ships its own |
+| Step 3 commands | Not a symlink: the commands go in as a **local plugin** (see [Optional: install commands as a local Codex plugin](#4-optional-install-commands-as-a-local-codex-plugin) below). Warn that current Codex builds do not surface plugin commands in the `/` popup — the `commit` and `pr` **skills** are the working path |
+| Step 4 hooks | **Skip.** Hooks are a Claude Code feature; `~/.claude/settings.json` has no Codex equivalent. Say so instead of silently dropping the step |
+| Step 5 statusline | Codex has its own native status line — run `./codex-statusline/install.sh`, which writes `[tui] status_line = [...]` to `~/.codex/config.toml` after backing it up. Show the item list and let the user drop any of them |
+| Step 6 third-party | Same as Claude Code: `./update-thirdparty.sh`, then symlink into `~/.agents/skills/` |
+| Step 7 diffs | Same, against `~/.agents/skills/<name>` |
+| Step 8 wrap-up | Restart Codex so it reloads skills from `~/.agents/skills` and plugins from `~/.agents/plugins` |
+
 ## What Gets Installed
 
 ### Skills
 
 The top-level custom skills from this repository:
 
+- `autonomous-mode`
 - `commit`
 - `jira`
 - `jira-link`
@@ -22,6 +44,7 @@ The top-level custom skills from this repository:
 - `pr-screenshots`
 - `refactor-code`
 - `refactor-components`
+- `release`
 - `security-review`
 - `slack`
 - `todo-resolver`
@@ -35,6 +58,18 @@ Third-party skill from `thirdparty-skills.json`:
 This repository also contains Claude-style command files in `commands/`.
 
 Important: in current `codex-cli` builds, local plugin installation can succeed, but plugin-provided slash commands are not surfaced in the `/` command popup the same way Claude Code commands are. In practice, use the `commit` and `pr` skills instead of relying on `/commit` or `/pr` appearing in Codex CLI.
+
+### Status line
+
+Codex reads an ordered list of native status-line items from `~/.codex/config.toml`; it has no
+script-based status line, so `statusline/` does not apply here. Run `./codex-statusline/install.sh`
+for the closest equivalent — see [codex-statusline/README.md](codex-statusline/README.md).
+
+### Not installed: hooks
+
+The hooks in [`hooks/`](hooks/) — sounds, last-prompt capture, caffeinate — are a Claude Code
+feature driven by `~/.claude/settings.json`. Codex has no equivalent, so none of them are installed
+by this guide.
 
 ## Prerequisites
 
@@ -232,6 +267,7 @@ Remove the installed skill symlinks:
 ```bash
 rm -f ~/.agents/skills/jira
 rm -f ~/.agents/skills/jira-link
+rm -f ~/.agents/skills/autonomous-mode
 rm -f ~/.agents/skills/commit
 rm -f ~/.agents/skills/pr
 rm -f ~/.agents/skills/pr-comments
@@ -239,6 +275,7 @@ rm -f ~/.agents/skills/pr-review
 rm -f ~/.agents/skills/pr-screenshots
 rm -f ~/.agents/skills/refactor-code
 rm -f ~/.agents/skills/refactor-components
+rm -f ~/.agents/skills/release
 rm -f ~/.agents/skills/security-review
 rm -f ~/.agents/skills/slack
 rm -f ~/.agents/skills/todo-resolver
