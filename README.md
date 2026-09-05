@@ -152,13 +152,13 @@ A custom Claude Code statusline lives in [`statusline/`](statusline/):
 
 ```
 my-claude-skills │ main │ Claude Opus 5 (1M context) · xhigh │ ████░░░░░░ 45%
-current: ○○○○○○○○○○ 0% | weekly: ●●●●●○○○○○ 45% | pace: ↓
+current: ●●○○○○○○○○ 22% ↓ | weekly: ●●●●●○○○○○ 45% | pace: ↓
 resets 4:00pm (4h10m) | resets Thu, 4:00pm | caveman off
 ❯ review the auth middleware and tell me what breaks under load
 ```
 
 Project, git branch, model + effort, a context bar that goes red before auto-compact, 5-hour and
-7-day rate-limit usage with a pace arrow, reset times, and the prompt you last sent (that last row
+7-day rate-limit usage, each with its own pace arrow, reset times, and the prompt you last sent (that last row
 needs the last-prompt hooks). **Every row can be turned off** in `statusline/config.json` — see
 [`statusline/README.md`](statusline/README.md).
 

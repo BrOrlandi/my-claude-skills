@@ -72,6 +72,20 @@ function colorByPct(pct) {
   return '\x1b[31m';                       // red
 }
 
+// Pace arrow: project a rate-limit window's usage at the current burn rate.
+// `usedPct` is the percentage already spent, `remainingSec` how long the window
+// still has to run and `windowSec` its full length. Returns a colored arrow, or
+// null while less than `minElapsedSec` has passed and the projection would be
+// pure noise.
+function paceArrow(usedPct, remainingSec, windowSec, minElapsedSec) {
+  const elapsedSec = Math.max(0, windowSec - remainingSec);
+  if (elapsedSec <= minElapsedSec) return null;
+  const projected = usedPct * (windowSec / elapsedSec);
+  if (projected < 95) return '\x1b[32m↓\x1b[0m';   // green, under pace
+  if (projected <= 105) return '\x1b[33m→\x1b[0m'; // yellow, on pace
+  return '\x1b[31m↑\x1b[0m';                       // red, over pace
+}
+
 function gitBranch(dir) {
   try {
     const out = execSync('git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null', {
@@ -193,7 +207,14 @@ process.stdin.on('end', () => {
       if (fh && typeof fh.used_percentage === 'number') {
         const pct = Math.round(fh.used_percentage);
         const color = colorByPct(pct);
-        if (cfg.rateLimits) limParts.push(`\x1b[2mcurrent:\x1b[0m ${color}${dotBar(pct)} ${pct}%\x1b[0m`);
+        // Pace for the 5-hour window: arrow only, no label.
+        const arrow = (cfg.pace && typeof fh.resets_at === 'number')
+          ? paceArrow(fh.used_percentage, fh.resets_at - now, 5 * 3600, 900)
+          : null;
+        if (cfg.rateLimits) {
+          const suffix = arrow ? ` ${arrow}` : '';
+          limParts.push(`\x1b[2mcurrent:\x1b[0m ${color}${dotBar(pct)} ${pct}%\x1b[0m${suffix}`);
+        }
         if (cfg.resets && typeof fh.resets_at === 'number') {
           const d = new Date(fh.resets_at * 1000);
           const rem = formatRemaining(fh.resets_at - now);
@@ -214,15 +235,9 @@ process.stdin.on('end', () => {
           if (cfg.resets) resetParts.push(`\x1b[2mresets ${label}\x1b[0m`);
 
           // Pace: project weekly usage at current daily burn rate
-          const WEEK_SEC = 7 * 24 * 3600;
-          const elapsedSec = Math.max(0, WEEK_SEC - diff);
-          if (cfg.pace && elapsedSec > 3600) {
-            const projected = sd.used_percentage * (WEEK_SEC / elapsedSec);
-            let paceColor, arrow;
-            if (projected < 95) { paceColor = '\x1b[32m'; arrow = '↓'; }
-            else if (projected <= 105) { paceColor = '\x1b[33m'; arrow = '→'; }
-            else { paceColor = '\x1b[31m'; arrow = '↑'; }
-            limParts.push(`\x1b[2mpace:\x1b[0m ${paceColor}${arrow}\x1b[0m`);
+          if (cfg.pace) {
+            const arrow = paceArrow(sd.used_percentage, diff, 7 * 24 * 3600, 3600);
+            if (arrow) limParts.push(`\x1b[2mpace:\x1b[0m ${arrow}`);
           }
         }
       }

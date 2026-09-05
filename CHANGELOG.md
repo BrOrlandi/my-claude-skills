@@ -9,6 +9,16 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-09-04
+
+### Changed
+
+- **Statusline: a pace arrow for the current session too.** The 5-hour `current:` bar now ends with
+  a bare arrow — green `↓`, yellow `→`, red `↑` — projecting where the session lands at the burn
+  rate so far, the same reading the weekly `pace:` arrow gives for the week. No label, just the
+  arrow. It shows up 15 minutes into a window, once there is enough elapsed time for the projection
+  to mean anything, and the `pace` key in `statusline/config.json` turns both arrows off together.
+
 ## 2026-09-02
 
 ### Added

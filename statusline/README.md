@@ -1,12 +1,12 @@
 # Statusline
 
 Custom Claude Code statusline showing project, branch, model · effort, context usage, rate-limit
-tracking with pace projection, and the prompt you last sent. Every row can be turned off — see
+tracking with pace projection on both windows, and the prompt you last sent. Every row can be turned off — see
 [Customize](#customize-which-rows-you-see).
 
 ```
 my-claude-skills │ main │ Claude Opus 4.7 (1M context) · xhigh │ ████░░░░░░ 45%
-current: ○○○○○○○○○○ 0% | weekly: ●●●●●○○○○○ 45% | pace: ↓
+current: ●●○○○○○○○○ 22% ↓ | weekly: ●●●●●○○○○○ 45% | pace: ↓
 resets 4:00pm (4h10m) | resets Thu, 4:00pm | caveman off
 ❯ review the auth middleware and tell me what breaks under load
 ```
@@ -23,12 +23,19 @@ resets 4:00pm (4h10m) | resets Thu, 4:00pm | caveman off
 
 Appears only when the Claude Code payload includes `rate_limits` (Pro/Max subscribers, after the first API response).
 
-- **current** — 5-hour window usage as a dot bar + percentage
+- **current** — 5-hour window usage as a dot bar + percentage, followed by a bare pace arrow
 - **weekly** — 7-day window usage as a dot bar + percentage
-- **pace** — arrow projecting weekly usage at the current daily burn rate:
+- **pace** — arrow projecting weekly usage at the current daily burn rate
+
+Both arrows project the window's usage at the burn rate so far — usage spent divided by time
+elapsed, extrapolated to the end of the window:
+
   - `↓` green — on track (projected <95%)
   - `→` yellow — borderline (projected 95–105%)
   - `↑` red — over pace (projected >105%)
+
+The session arrow appears 15 minutes into a 5-hour window, the weekly one an hour into the week —
+before that there is too little elapsed time for the projection to mean anything.
 
 Dot-bar colors (current): dim <30% · green <60% · yellow <80% · orange <90% · red ≥90%.
 
@@ -78,7 +85,7 @@ cp statusline/config.example.json statusline/config.json
 | `effort` | Just the `· xhigh` effort suffix, keeping the model name |
 | `context` | The context bar (line 1) |
 | `rateLimits` | The `current:` / `weekly:` usage bars (line 2) |
-| `pace` | The pace arrow (line 2) |
+| `pace` | Both pace arrows — the bare one after `current:` and `pace: ↓` (line 2) |
 | `resets` | The reset-times row (line 3) |
 | `caveman` | The caveman badge (line 3) |
 | `lastPrompt` | The `❯ your last prompt…` row |
