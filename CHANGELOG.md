@@ -9,6 +9,31 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-09-21
+
+### Added
+
+- **The rate-limit bars now show the time that passed unspent.** Next to the dots you already
+  burned (`●`), the `current:` and `weekly:` bars fill the gap up to how far the window has
+  elapsed with a dim `◍`. So `●●●●●◍◍◍◍◍○○○○○○○○○○ 25%` reads as "a quarter of the
+  allowance gone, half the week elapsed" — the slack you built up is visible at a glance instead
+  of only implied by the pace arrow. When usage runs ahead of the clock there is no gap and the
+  bar looks as it always did. Follows the existing `pace` config key, so turning the arrows off
+  turns the shading off too.
+
+### Fixed
+
+- **The statusline's effort level follows the session again.** It read the saved default out of
+  `~/.claude/settings.json`, so it kept printing the same level no matter what you switched the
+  session to. It now reads the live value Claude Code sends, and only falls back to `settings.json`
+  on CLI versions that don't send it.
+
+### Changed
+
+- **Every bar in the statusline is twice as detailed.** The context bar, `current:` and `weekly:`
+  all went from ten segments to twenty, so each one is 5% instead of 10% and small movements
+  actually show up. Both lines are about 10 to 20 characters wider as a result.
+
 ## 2026-09-04
 
 ### Changed

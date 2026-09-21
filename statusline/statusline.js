@@ -59,9 +59,32 @@ function formatRemaining(seconds) {
   return remMin > 0 ? `${hours}h${remMin}m` : `${hours}h`;
 }
 
-function dotBar(pct) {
-  const filled = Math.max(0, Math.min(10, Math.round(pct / 10)));
-  return '●'.repeat(filled) + '○'.repeat(10 - filled);
+// How many segments the bars are drawn with. 20 puts each one at 5%, so a
+// single segment's worth of usage or elapsed time is visible.
+const BAR_DOTS = 20;
+const CTX_BLOCKS = 20;
+
+// Usage bar. `pacePct` is how much of the window has already elapsed; when
+// usage trails it, the dots between the two are drawn with a distinct glyph,
+// so the bar also shows the time that passed unspent. Those dots are always
+// dim, and `color` (the ANSI prefix the caller wrapped the bar in) is restored
+// afterwards so the unspent tail keeps its original color.
+function dotBar(pct, pacePct, color) {
+  const slots = n => Math.max(0, Math.min(BAR_DOTS, Math.round((n / 100) * BAR_DOTS)));
+  const spent = slots(pct);
+  const elapsed = typeof pacePct === 'number' ? slots(pacePct) : 0;
+  const ahead = Math.max(0, elapsed - spent);
+  const head = '●'.repeat(spent);
+  const tail = '○'.repeat(BAR_DOTS - spent - ahead);
+  if (ahead === 0) return head + tail;
+  return `${head}\x1b[2m${'◍'.repeat(ahead)}\x1b[0m${color || ''}${tail}`;
+}
+
+// Share of a rate-limit window already elapsed, as a percentage. Unlike the
+// pace arrow this is a direct measurement, not a projection, so it needs no
+// minimum-elapsed guard.
+function elapsedPct(remainingSec, windowSec) {
+  return Math.max(0, Math.min(100, ((windowSec - remainingSec) / windowSec) * 100));
 }
 
 function colorByPct(pct) {
@@ -180,8 +203,8 @@ process.stdin.on('end', () => {
     if (cfg.context && remaining != null) {
       const usableRemaining = Math.max(0, ((remaining - AUTO_COMPACT_BUFFER_PCT) / (100 - AUTO_COMPACT_BUFFER_PCT)) * 100);
       const used = Math.max(0, Math.min(100, Math.round(100 - usableRemaining)));
-      const filled = Math.floor(used / 10);
-      const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
+      const filled = Math.floor((used / 100) * CTX_BLOCKS);
+      const bar = '█'.repeat(filled) + '░'.repeat(CTX_BLOCKS - filled);
 
       if (used < 50) {
         ctx = `\x1b[32m${bar} ${used}%\x1b[0m`;
@@ -222,9 +245,13 @@ process.stdin.on('end', () => {
         const arrow = (cfg.pace && typeof fh.resets_at === 'number')
           ? paceArrow(fh.used_percentage, fh.resets_at - now, 5 * 3600, 900)
           : null;
+        // Shaded region: how much of the 5-hour window has already elapsed.
+        const elapsed = (cfg.pace && typeof fh.resets_at === 'number')
+          ? elapsedPct(fh.resets_at - now, 5 * 3600)
+          : null;
         if (cfg.rateLimits) {
           const suffix = arrow ? ` ${arrow}` : '';
-          limParts.push(`\x1b[2mcurrent:\x1b[0m ${color}${dotBar(pct)} ${pct}%\x1b[0m${suffix}`);
+          limParts.push(`\x1b[2mcurrent:\x1b[0m ${color}${dotBar(pct, elapsed, color)} ${pct}%\x1b[0m${suffix}`);
         }
         if (cfg.resets && typeof fh.resets_at === 'number') {
           const d = new Date(fh.resets_at * 1000);
@@ -235,8 +262,12 @@ process.stdin.on('end', () => {
 
       if (sd && typeof sd.used_percentage === 'number') {
         const pct = Math.round(sd.used_percentage);
-        // Colored variant: limParts.push(`\x1b[2mweekly:\x1b[0m ${colorByPct(pct)}${dotBar(pct)} ${pct}%\x1b[0m`);
-        if (cfg.rateLimits) limParts.push(`\x1b[2mweekly: ${dotBar(pct)} ${pct}%\x1b[0m`);
+        // Shaded region: how much of the 7-day window has already elapsed.
+        const elapsed = (cfg.pace && typeof sd.resets_at === 'number')
+          ? elapsedPct(sd.resets_at - now, 7 * 24 * 3600)
+          : null;
+        // Colored variant: limParts.push(`\x1b[2mweekly:\x1b[0m ${colorByPct(pct)}${dotBar(pct, elapsed, colorByPct(pct))} ${pct}%\x1b[0m`);
+        if (cfg.rateLimits) limParts.push(`\x1b[2mweekly: ${dotBar(pct, elapsed, '\x1b[2m')} ${pct}%\x1b[0m`);
         if (typeof sd.resets_at === 'number') {
           const d = new Date(sd.resets_at * 1000);
           const diff = sd.resets_at - now;

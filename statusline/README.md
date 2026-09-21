@@ -5,8 +5,8 @@ tracking with pace projection on both windows, and the prompt you last sent. Eve
 [Customize](#customize-which-rows-you-see).
 
 ```
-my-claude-skills │ main │ Claude Opus 4.7 (1M context) · xhigh │ ████░░░░░░ 45%
-current: ●●○○○○○○○○ 22% ↓ | weekly: ●●●●●○○○○○ 45% | pace: ↓
+my-claude-skills │ main │ Claude Opus 4.7 (1M context) · xhigh │ █████████░░░░░░░░░░░ 45%
+current: ●●●●◍◍◍◍○○○○○○○○○○○○ 22% ↓ | weekly: ●●●●●●●●●◍○○○○○○○○○○ 45% | pace: ↓
 resets 4:00pm (4h10m) | resets Thu, 4:00pm | caveman off
 ❯ review the auth middleware and tell me what breaks under load
 ```
@@ -15,8 +15,8 @@ resets 4:00pm (4h10m) | resets Thu, 4:00pm | caveman off
 
 1. **Project** (cyan) — basename of `workspace.project_dir`
 2. **Branch** (magenta) — current git branch/short SHA (omitted outside a repo)
-3. **Model · effort** (dim) — `model.display_name` from the Claude Code payload plus `effortLevel` read from `~/.claude/settings.json`
-4. **Context bar** — 10-segment bar scaled to the usable context (accounts for the ~16.5% auto-compact buffer, or `CLAUDE_CODE_AUTO_COMPACT_WINDOW` when set)
+3. **Model · effort** (dim) — `model.display_name` and the live session `effort.level`, both from the Claude Code payload (falling back to `effortLevel` in `~/.claude/settings.json` on older CLI versions)
+4. **Context bar** — 20-segment bar scaled to the usable context (accounts for the ~16.5% auto-compact buffer, or `CLAUDE_CODE_AUTO_COMPACT_WINDOW` when set)
    - green <50% · yellow <65% · orange <80% · blinking red 💀 ≥80%
 
 ## Line 2 — rate limit usage (Pro/Max only)
@@ -26,6 +26,21 @@ Appears only when the Claude Code payload includes `rate_limits` (Pro/Max subscr
 - **current** — 5-hour window usage as a dot bar + percentage, followed by a bare pace arrow
 - **weekly** — 7-day window usage as a dot bar + percentage
 - **pace** — arrow projecting weekly usage at the current daily burn rate
+
+### Dot bars
+
+Each bar is twenty dots — one dot per 5% — and reads left to right:
+
+| Dot | Means |
+| --- | ----- |
+| `●` | Usage already spent in the window |
+| `◍` (dim) | Time that has passed in the window without being spent |
+| `○` | Neither spent nor elapsed |
+
+So `●●●●●◍◍◍◍◍○○○○○○○○○○ 25%` means a quarter of the allowance is gone, half the
+window has elapsed, and you are running at half the pace the window allows. When usage runs ahead of the
+clock there is nothing to shade, and the bar is plain `●`/`○`. The shaded region follows the
+`pace` config key, so turning the arrows off turns it off too.
 
 Both arrows project the window's usage at the burn rate so far — usage spent divided by time
 elapsed, extrapolated to the end of the window:
@@ -85,7 +100,7 @@ cp statusline/config.example.json statusline/config.json
 | `effort` | Just the `· xhigh` effort suffix, keeping the model name |
 | `context` | The context bar (line 1) |
 | `rateLimits` | The `current:` / `weekly:` usage bars (line 2) |
-| `pace` | Both pace arrows — the bare one after `current:` and `pace: ↓` (line 2) |
+| `pace` | Both pace arrows — the bare one after `current:` and `pace: ↓` — and the dim `◍` elapsed-time region inside both dot bars (line 2) |
 | `resets` | The reset-times row (line 3) |
 | `caveman` | The caveman badge (line 3) |
 | `lastPrompt` | The `❯ your last prompt…` row |
