@@ -49,11 +49,8 @@ If the user passes `review` (or `preview` / wording like "let me review first" /
    gh pr create --base "$BASE" --draft --title "<title>" --body-file <body-file>
    gh pr edit <number> --title "<title>" --body-file <body-file>
    ```
-   Stacked PR — the base is the parent's head branch, and the chain is linked afterward:
-   ```bash
-   gh pr create --base "<parent-branch>" --title "<title>" --body-file <body-file>
-   gh stack submit --auto
-   ```
+   For a stacked PR the base is the parent's head branch and the chain is linked afterward — the
+   commands live in **Stacked PRs** below.
 11. Request the default reviewers configured for the repository's GitHub org — see **Default Reviewers** below.
 12. After creating the PR, use the `jira-link` skill when applicable to offer Jira linking for repositories with configured Jira integration.
 13. If the repository has `.claude/release.json` and the branch's commits touch an app with changelog targets, offer the changelog update in one sentence using the `release` skill, and let the user decide. Stay quiet when there is no manifest — a repo without a release convention is not asking for one at PR time.
@@ -62,13 +59,12 @@ If the user passes `review` (or `preview` / wording like "let me review first" /
    gh pr view -w
    ```
 
-Always: detect the repository's default base branch, read the repo's PR conventions, list existing PRs for the current branch, check whether the branch stacks on an open PR and target that branch when it does, commit first when there are local changes, compare against that base branch, create or update the PR without pre-approval, show the final PR content afterward for review, honor the requested PR mode, request the org's default reviewers, and offer Jira linking after creation.
-
 ## Stacked PRs
 
-A branch built on top of another branch that is still under review must target **that branch**, not the trunk. Against the trunk, the diff carries the parent's commits too: the reviewer reads the same code twice, and every revision of the parent churns this PR. Stacking fixes both — base this PR on the parent's head branch and link the chain so GitHub shows the order.
-
-Default: **when a parent is detected, create the PR as part of the stack.** Flat-against-trunk is the fallback, not the preference.
+A branch built on top of another branch that is still under review must target **that branch**, not
+the trunk. Against the trunk the diff carries the parent's commits too: the reviewer reads the same
+code twice, and every revision of the parent churns this PR. Default: **when a parent is detected,
+create the PR as part of the stack.** Flat-against-trunk is the fallback, not the preference.
 
 ### Detect the parent
 
@@ -100,60 +96,12 @@ Other signals worth acting on:
 
 No match means the branch is independent: open it against the trunk and say nothing about stacks.
 
-### Confirm before stacking
+### Then read the reference
 
-Stacking changes what reviewers see, so state the finding and get a yes:
-
-> This branch sits on top of **#123 — `<title>`** (`feat/auth`), still open. I'll base this PR on `feat/auth` so the diff shows only your changes, and link the two as a stack. Say the word if you'd rather target `main` directly.
-
-Proceed on approval, or immediately when the user already asked for a stack (`stack` argument, or naming the parent). If they decline, open against the trunk and note in the body that the diff includes #123's commits.
-
-### Extension check
-
-The stack commands come from a `gh` extension:
-
-```bash
-gh extension list | grep -q 'gh-stack' || echo missing
-```
-
-If it is missing, offer the install once — never install without approval:
-
-> Stacking needs the `gh stack` extension: `gh extension install github/gh-stack`. Install it?
-
-Declining does not cancel the stack. `gh pr create --base <parent-branch>` still gives the correct base and diff; what is lost is GitHub's stack view and the cascading rebases. Say that in one line and continue.
-
-### Create the stacked PR
-
-Adopt the branches into a local stack bottom-to-top, then create this layer's PR with the title and body drafted the normal way:
-
-```bash
-# Adopt the chain, trunk-adjacent branch first. Skip when `gh stack view` already tracks it.
-gh stack init --base "$BASE" <bottom-branch> ... <this-branch>
-
-git push -u origin HEAD
-gh pr create --base "<parent-branch>" --title "<title>" --body-file <body-file>   # --draft for draft mode
-
-# Link the chain into a stack on GitHub. With every branch already carrying a PR this
-# creates no PRs and invents no titles — it pushes, fixes the bases, records the stack.
-gh stack submit --auto
-```
-
-Rules:
-
-- **Write the title and body yourself.** `gh stack submit --auto` auto-generates titles for branches that have no PR yet, so never let it open the PR: `gh pr create` first, submit afterwards only to link.
-- **Never pass `--open` to `gh stack submit`.** It marks *existing* PRs ready for review too, silently un-drafting a draft elsewhere in the stack.
-- **Name the parent in the body.** A `Stacked on #123` line at the top of the Context section (in the repo's language) tells a reviewer landing here what precedes it.
-- **Report the real base.** The base is the parent's head branch, not the trunk — a reviewer expecting `main` needs to be told.
-- **`gh stack sync` force-pushes.** It cascade-rebases and pushes every branch in the stack with `--force-with-lease --atomic`. Use it to bring the stack up to date after the parent moves, and confirm first when someone is already reviewing. `gh stack rebase` is the narrower tool for resolving conflicts.
-- **One layer per run.** This skill opens the PR for the current branch. It does not restructure existing branches or split commits without an explicit ask.
-
-### When to suggest splitting
-
-A single branch whose commits fall into clearly separable phases — a refactor followed by the feature that needs it, a migration followed by its consumer — reviews faster as a stack. Say so in one sentence and let the user decide:
-
-> These 14 commits split cleanly into "extract the client" and "add the retry policy". Want two stacked PRs instead of one?
-
-Never rewrite history or move commits to build that stack without approval.
+Once a parent is found — or the user asked for a stack — read `references/stacked-prs.md` before
+creating anything. It carries the confirmation wording, the `gh stack` extension check, the
+create-and-link commands, the rules that keep `gh stack submit` from inventing titles or
+un-drafting someone else's PR, and when to suggest splitting one branch into a stack.
 
 ## Default Reviewers
 
