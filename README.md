@@ -153,7 +153,7 @@ A custom Claude Code statusline lives in [`statusline/`](statusline/):
 ```
 my-claude-skills │ main │ Claude Opus 5 (1M context) · xhigh │ █████████░░░░░░░░░░░ 45%
 current: ●●●●◍◍◍◍○○○○○○○○○○○○ 22% ↓ | weekly: ●●●●●●●●●◍○○○○○○○○○○ 45% | pace: ↓
-resets 4:00pm (4h10m) | resets Thu, 4:00pm | caveman off
+resets 4:00pm (4h10m)               | resets Thu, 4:00pm | caveman off
 ❯ review the auth middleware and tell me what breaks under load
 ```
 

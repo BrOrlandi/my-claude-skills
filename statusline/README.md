@@ -7,7 +7,7 @@ tracking with pace projection on both windows, and the prompt you last sent. Eve
 ```
 my-claude-skills │ main │ Claude Opus 4.7 (1M context) · xhigh │ █████████░░░░░░░░░░░ 45%
 current: ●●●●◍◍◍◍○○○○○○○○○○○○ 22% ↓ | weekly: ●●●●●●●●●◍○○○○○○○○○○ 45% | pace: ↓
-resets 4:00pm (4h10m) | resets Thu, 4:00pm | caveman off
+resets 4:00pm (4h10m)               | resets Thu, 4:00pm | caveman off
 ❯ review the auth middleware and tell me what breaks under load
 ```
 
@@ -55,6 +55,9 @@ before that there is too little elapsed time for the projection to mean anything
 Dot-bar colors (current): dim <30% · green <60% · yellow <80% · orange <90% · red ≥90%.
 
 ## Line 3 — reset times + caveman badge
+
+Each reset is padded out to start under the usage segment it belongs to, so the weekly reset
+sits below `weekly:`.
 
 - 5-hour reset as `h:mmam/pm` with time remaining in parentheses
 - 7-day reset as `h:mmam/pm` if within 24h, otherwise `Weekday, h:mmam/pm`

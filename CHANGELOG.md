@@ -30,6 +30,9 @@ History starts here: earlier work is in the git log, not in this file.
 
 ### Changed
 
+- **The reset times line up with the bars above them.** Line 3 pads each reset out to the column
+  of the usage segment it belongs to, so the weekly reset sits directly under `weekly:` instead
+  of wherever the 5-hour reset happened to end.
 - **Every bar in the statusline is twice as detailed.** The context bar, `current:` and `weekly:`
   all went from ten segments to twenty, so each one is 5% instead of 10% and small movements
   actually show up. Both lines are about 10 to 20 characters wider as a result.

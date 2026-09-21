@@ -87,6 +87,11 @@ function elapsedPct(remainingSec, windowSec) {
   return Math.max(0, Math.min(100, ((windowSec - remainingSec) / windowSec) * 100));
 }
 
+// Visible width of a string, ignoring the ANSI escapes wrapped around it.
+function visibleWidth(str) {
+  return str.replace(/\x1b\[[0-9;]*m/g, '').length;
+}
+
 function colorByPct(pct) {
   if (pct < 30) return '\x1b[2m';          // dim gray
   if (pct < 60) return '\x1b[32m';         // green
@@ -249,14 +254,15 @@ process.stdin.on('end', () => {
         const elapsed = (cfg.pace && typeof fh.resets_at === 'number')
           ? elapsedPct(fh.resets_at - now, 5 * 3600)
           : null;
+        let slot = null;
         if (cfg.rateLimits) {
           const suffix = arrow ? ` ${arrow}` : '';
-          limParts.push(`\x1b[2mcurrent:\x1b[0m ${color}${dotBar(pct, elapsed, color)} ${pct}%\x1b[0m${suffix}`);
+          slot = limParts.push(`\x1b[2mcurrent:\x1b[0m ${color}${dotBar(pct, elapsed, color)} ${pct}%\x1b[0m${suffix}`) - 1;
         }
         if (cfg.resets && typeof fh.resets_at === 'number') {
           const d = new Date(fh.resets_at * 1000);
           const rem = formatRemaining(fh.resets_at - now);
-          resetParts.push(`\x1b[2mresets ${formatTime(d)} (${rem})\x1b[0m`);
+          resetParts.push({ slot, text: `\x1b[2mresets ${formatTime(d)} (${rem})\x1b[0m` });
         }
       }
 
@@ -267,14 +273,15 @@ process.stdin.on('end', () => {
           ? elapsedPct(sd.resets_at - now, 7 * 24 * 3600)
           : null;
         // Colored variant: limParts.push(`\x1b[2mweekly:\x1b[0m ${colorByPct(pct)}${dotBar(pct, elapsed, colorByPct(pct))} ${pct}%\x1b[0m`);
-        if (cfg.rateLimits) limParts.push(`\x1b[2mweekly: ${dotBar(pct, elapsed, '\x1b[2m')} ${pct}%\x1b[0m`);
+        let slot = null;
+        if (cfg.rateLimits) slot = limParts.push(`\x1b[2mweekly: ${dotBar(pct, elapsed, '\x1b[2m')} ${pct}%\x1b[0m`) - 1;
         if (typeof sd.resets_at === 'number') {
           const d = new Date(sd.resets_at * 1000);
           const diff = sd.resets_at - now;
           const label = diff < 24 * 3600
             ? formatTime(d)
             : `${WEEKDAYS[d.getDay()]}, ${formatTime(d)}`;
-          if (cfg.resets) resetParts.push(`\x1b[2mresets ${label}\x1b[0m`);
+          if (cfg.resets) resetParts.push({ slot, text: `\x1b[2mresets ${label}\x1b[0m` });
 
           // Pace: project weekly usage at current daily burn rate
           if (cfg.pace) {
@@ -285,7 +292,34 @@ process.stdin.on('end', () => {
       }
 
       if (limParts.length) output += '\n' + limParts.join(limSep);
-      if (resetParts.length) output += '\n' + resetParts.join(limSep);
+
+      // Line 3 sits under line 2: each reset starts at the column of the usage
+      // segment it belongs to, so the weekly reset lands under `weekly:`. A
+      // reset whose column is already behind us just follows the separator.
+      if (resetParts.length) {
+        const sepWidth = visibleWidth(limSep);
+        const columns = limParts.map((_, i) =>
+          limParts.slice(0, i).reduce((sum, p) => sum + visibleWidth(p) + sepWidth, 0));
+        let line = '';
+        let col = 0;
+        resetParts.forEach(({ slot, text }, i) => {
+          // Pad before the separator, so `| ` stays attached to the column it
+          // introduces instead of trailing the reset on its left.
+          const target = slot === null ? null : columns[slot];
+          const padTo = i > 0 && target != null ? target - sepWidth : target;
+          if (padTo != null && padTo > col) {
+            line += ' '.repeat(padTo - col);
+            col = padTo;
+          }
+          if (i > 0) {
+            line += limSep;
+            col += sepWidth;
+          }
+          line += text;
+          col += visibleWidth(text);
+        });
+        output += '\n' + line;
+      }
     }
 
     // Caveman badge — row 3. Append to resets line if present, else emit own line.
