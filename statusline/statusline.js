@@ -100,11 +100,22 @@ function gitBranch(dir) {
   }
 }
 
-function readEffort() {
+// Resolve the effort level shown next to the model name.
+// The live session value arrives in the statusline payload as `effort.level`
+// (Claude Code only sends it for models that support reasoning effort), so it
+// is always preferred. settings.json is a fallback for older CLI versions that
+// do not send the field: first the per-model override, then the global default.
+function readEffort(data) {
+  const live = data?.effort?.level;
+  if (typeof live === 'string' && live) return live;
+
   try {
     const settingsPath = path.join(os.homedir(), '.claude', 'settings.json');
     const s = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-    return s.effortLevel || null;
+    // settings.json keys models without the context-window suffix ("[1m]").
+    const modelId = data?.model?.id?.replace(/\[1m\]$/i, '');
+    const perModel = modelId ? s.modelSettings?.[modelId]?.effortLevel : null;
+    return perModel || s.effortLevel || null;
   } catch (e) {
     return null;
   }
@@ -159,7 +170,7 @@ process.stdin.on('end', () => {
     const branch = cfg.branch ? gitBranch(dir) : null;
 
     // Column 3: model · effort
-    const effort = cfg.effort ? readEffort() : null;
+    const effort = cfg.effort ? readEffort(data) : null;
     const modelSegment = effort ? `${model} · ${effort}` : model;
 
     // Column 4: context bar
