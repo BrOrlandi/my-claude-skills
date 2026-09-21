@@ -36,6 +36,20 @@ History starts here: earlier work is in the git log, not in this file.
 - **Every bar in the statusline is twice as detailed.** The context bar, `current:` and `weekly:`
   all went from ten segments to twenty, so each one is 5% instead of 10% and small movements
   actually show up. Both lines are about 10 to 20 characters wider as a result.
+- **The `commit` skill learns whether your repo uses feature branches.** It used to ask for
+  confirmation before every commit on `main` or `master`, forever. Now, in a repo where work lands
+  straight on the default branch, it reads the last 30 commits there, and if most of them are
+  direct commits and several are yours, it offers once to write that convention into the repo's
+  `CLAUDE.md` (or `AGENTS.md`) — after which it commits to the default branch without asking again.
+  Nothing is written without your explicit yes, and it tells you the file is tracked, so the rule
+  reaches whoever else works in the repo. Repos that merge PRs are detected as such and keep the
+  confirmation guard; a "no" keeps the guard too. The skill leaves that documentation edit
+  uncommitted and offers to commit it on its own, never folded into the commit you asked for.
+- **`commit` no longer suggests splitting tests away from the code they cover.** Its multi-commit
+  guidance used to list "feature implementation separate from tests" as a good split, which
+  contradicted the rule against commits that leave the repo in a broken state. Tests now ship in the
+  same commit as the code they cover; splits stay reserved for a refactor apart from the behavior
+  change that follows it, unrelated packages in a monorepo, and generated or lockfile updates.
 
 ## 2026-09-04
 
