@@ -54,3 +54,10 @@ Structured convention: `.claude/release.json` (read by the `release` skill).
   install-script internals, README formatting, and the vendored `skills/` submodule and
   `thirdparty/` contents.
 - When a change and its changelog entry ship together, they belong in the same commit.
+
+## Git workflow
+
+<!-- claude-skill:commit default-branch-policy=direct -->
+
+Work lands directly on the default branch. Commit to it without asking for confirmation, and do not
+propose creating a feature branch first.
