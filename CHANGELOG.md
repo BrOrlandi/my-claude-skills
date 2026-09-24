@@ -9,6 +9,21 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-09-24
+
+### Changed
+
+- **`commit` stops asking permission to learn your branching convention.** The check that spots a
+  repo where work lands straight on the default branch used to run after the commit and then ask
+  whether it could write the convention down. It now runs *before* the confirmation guard: in a repo
+  whose recent history is overwhelmingly your own direct commits, the rule is recorded and the
+  commit proceeds with no prompt at all, where before you answered two. Nothing else changed about
+  when it fires — the repo still needs at least 10 commits sampled, 70% of them direct and 5 of
+  those yours, and a repo that merges PRs still keeps the confirmation guard. The write is reported
+  in the completion summary and left uncommitted, so a tracked file never changes behind your back.
+- **The PR check no longer misreads an unpushed commit.** Commits that have not reached GitHub
+  answer `422 No commit found`, which is now treated as "not from a PR" rather than left undefined.
+
 ## 2026-09-21
 
 ### Added

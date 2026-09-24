@@ -79,7 +79,7 @@ Codex CLI users: [INSTALL_CODEX.md](INSTALL_CODEX.md).
 
 | Skill                   | Description                                                                                                             | Invocation |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------- |
-| **commit**              | Create structured git commits using conventional commit format with branch and PR checks. Learns whether the repo commits straight to its default branch and, once you confirm, records it in `CLAUDE.md`/`AGENTS.md` and stops asking | Autonomous |
+| **commit**              | Create structured git commits using conventional commit format with branch and PR checks. Reads the default branch's history to learn whether the repo uses feature branches; where it plainly does not, it records that in `CLAUDE.md`/`AGENTS.md` and stops asking, without a confirmation prompt | Autonomous |
 | **pr**                  | Create or update GitHub pull requests against the repo's default base branch (`main`, `develop`, etc.), using the commit workflow when local changes exist. Supports `review` to approve title/body before creating | Autonomous |
 | **release**             | Establish and then run a repository's release convention — version bump, changelog, tag, GitHub release, store notes. Records the convention in `.claude/release.json` on first run | Autonomous |
 | **refactor-components** | Find large React components (.tsx/.jsx) and refactor them into smaller, focused components                              | Explicit only |

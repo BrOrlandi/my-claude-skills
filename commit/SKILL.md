@@ -23,8 +23,8 @@ Create coherent, reviewable commits after inspecting the current branch, local c
    ```
    If a merged PR exists for this branch, ask the user whether to proceed or switch/create another branch.
 3. Resolve the default-branch commit policy (see [Default-Branch Commit Policy](#default-branch-commit-policy))
-   before touching the default branch. With no recorded policy, do not commit automatically on the default
-   branch (`main`, `master`, or whatever the repo uses) — ask the user for explicit confirmation first.
+   before touching the default branch (`main`, `master`, or whatever the repo uses). The policy decides
+   whether committing there needs confirmation — never ask on top of a policy that already answered.
 4. Compare the branch name with the changed files and diff. If the changes clearly do not match the branch purpose, stop and explain the mismatch.
 5. Analyze the diff and group changes into logical, atomic commits. Prefer one commit when the change is a single coherent unit; split only when the groups are independently understandable and testable.
 6. Stage only the files belonging to the commit being created, and review the staged diff with `git diff --cached` before committing.
@@ -52,7 +52,7 @@ state — tests ship with the code they cover.
 ## Default-Branch Commit Policy
 
 Some repositories are worked on straight from the default branch and never see a feature branch.
-Record that convention once, then follow it silently.
+Learn that convention from the history and follow it, rather than turning it into a question.
 
 **Read the marker first**, before step 3:
 
@@ -62,7 +62,7 @@ grep -rns 'claude-skill:commit default-branch-policy' CLAUDE.md AGENTS.md .claud
 
 - `=direct` — commit on the default branch without asking, and never propose creating a branch.
 - `=branch-first` — keep the guard: ask for explicit confirmation.
-- No marker — apply the guard, then detect the convention **after** the commit lands.
+- No marker — run the detection below **now**, before deciding whether to ask anything.
 
 **Detect**, only when no marker exists:
 
@@ -74,25 +74,33 @@ git config user.email
 ```
 
 A commit went through a PR when it is a merge commit (two parents in `%p`) or its subject ends in
-`(#123)`, the suffix a GitHub squash merge leaves; everything else counts as direct. Propose
-recording `direct` only when the sample holds at least 10 commits, at least 70% of them are direct,
-and at least 5 of those are authored by the current `user.email`.
+`(#123)`, the suffix a GitHub squash merge leaves; everything else counts as direct. The convention
+is `direct` when the sample holds at least 10 commits, at least 70% of them are direct, and at least
+5 of those are authored by the current `user.email` — that last threshold is what keeps the rule
+from being inferred in a repo the user barely commits to.
 
-Repos that rebase-merge leave neither marker, so their PR commits look direct. Before proposing,
-sample up to 3 commits classified as direct — if any returns a PR, the repo uses a PR flow, so
-record nothing and keep the guard:
+Repos that rebase-merge leave neither marker, so their PR commits look direct. Before concluding,
+sample up to 3 commits classified as direct — if any belongs to a PR, the repo uses a PR flow:
 
 ```bash
 gh api "repos/{owner}/{repo}/commits/<sha>/pulls" --jq 'length'
 ```
 
-**Ask once**, never writing without explicit confirmation:
+An error or an empty response counts as **no PR**: an unpushed commit answers `422 No commit found`,
+which is not evidence of a PR.
 
-> The last 30 commits on `main` are 27 direct commits, 18 of them yours — this repo does not use
-> feature branches. Want me to record that in `CLAUDE.md` so I stop asking before every commit on
-> `main`? It is a tracked file, so the rule ships to everyone working in this repo.
+**Record it silently.** When the thresholds hold, write the marker and commit on the default branch
+without asking. The history already answered the question, so do not put it to the user — no
+"can I record this?", no confirmation step. Report the write in one line in the completion summary
+(see **After Committing**) so the user knows a tracked file changed, and leave the edit uncommitted
+so they see it before it ships; offer to commit it on its own as
+`chore(docs): record the direct-to-default-branch commit convention`, never folded into the commit
+the user asked for.
 
-On a "no", record nothing, keep asking on later runs, and do not re-propose in the same session.
+When the thresholds do not hold, or the sample shows a PR flow, write nothing and keep the guard:
+ask for explicit confirmation before committing on the default branch. An explicit user instruction
+always wins — record nothing if they say not to, and record `branch-first` if they want the guard
+kept permanently.
 
 **Write the marker** into an existing `CLAUDE.md`, else an existing `AGENTS.md`, else a new
 `CLAUDE.md`, keeping it on its own line so later runs can grep it:
@@ -105,11 +113,6 @@ On a "no", record nothing, keep asking on later runs, and do not re-propose in t
 Work lands directly on the default branch. Commit to it without asking for confirmation, and do not
 propose creating a feature branch first.
 ```
-
-Use `default-branch-policy=branch-first` with the opposite sentence when the user wants the guard
-kept permanently. Leave the edit uncommitted and report it; offer to commit it on its own as
-`chore(docs): record the direct-to-default-branch commit convention`, never folded into the commit
-the user asked for.
 
 ## After Committing
 
