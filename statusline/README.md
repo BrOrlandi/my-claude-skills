@@ -25,7 +25,8 @@ Appears only when the Claude Code payload includes `rate_limits` (Pro/Max subscr
 
 - **current** — 5-hour window usage as a dot bar + percentage, followed by a bare pace arrow
 - **weekly** — 7-day window usage as a dot bar + percentage
-- **pace** — arrow projecting weekly usage at the current daily burn rate
+- **pace** — arrow projecting weekly usage at the current daily burn rate. When it turns red, a
+  catch-up hint follows it (see [Over pace](#over-pace))
 
 ### Dot bars
 
@@ -51,6 +52,25 @@ elapsed, extrapolated to the end of the window:
 
 The session arrow appears 15 minutes into a 5-hour window, the weekly one an hour into the week —
 before that there is too little elapsed time for the projection to mean anything.
+
+### Over pace
+
+When the weekly arrow is red, two numbers follow it:
+
+```
+weekly: ●●●●●●●●●○○○○○○○○○○○ 45% | pace: ↑ ideal 30% · pause 1d2h
+```
+
+- **ideal** — where the weekly bar would be by now if usage were spread evenly across the week,
+  i.e. the share of the week already elapsed. It is the number the bar does not show when you are
+  ahead of the clock, since there is no `◍` region to mark it.
+- **pause** — how long a full stop would take for the clock to catch up with what you already
+  spent. Each point above `ideal` is worth 1h41m of the week (168h ÷ 100), so 15 points over
+  is about 25h. Once that time has passed you are back on pace; using less instead of stopping
+  stretches it. Hours round up, and anything past a day shows as `1d2h`.
+
+Only the weekly window gets the hint: the 5-hour window resets too quickly for a pause to be worth
+planning around. It follows the `pace` config key.
 
 Dot-bar colors (current): dim <30% · green <60% · yellow <80% · orange <90% · red ≥90%.
 
@@ -103,7 +123,7 @@ cp statusline/config.example.json statusline/config.json
 | `effort` | Just the `· xhigh` effort suffix, keeping the model name |
 | `context` | The context bar (line 1) |
 | `rateLimits` | The `current:` / `weekly:` usage bars (line 2) |
-| `pace` | Both pace arrows — the bare one after `current:` and `pace: ↓` — and the dim `◍` elapsed-time region inside both dot bars (line 2) |
+| `pace` | Both pace arrows — the bare one after `current:` and `pace: ↓` — the over-pace `ideal` / `pause` hint, and the dim `◍` elapsed-time region inside both dot bars (line 2) |
 | `resets` | The reset-times row (line 3) |
 | `caveman` | The caveman badge (line 3) |
 | `lastPrompt` | The `❯ your last prompt…` row |

@@ -100,6 +100,9 @@ function colorByPct(pct) {
   return '\x1b[31m';                       // red
 }
 
+// Projected usage above which the pace arrow turns red.
+const OVER_PACE_PCT = 105;
+
 // Pace arrow: project a rate-limit window's usage at the current burn rate.
 // `usedPct` is the percentage already spent, `remainingSec` how long the window
 // still has to run and `windowSec` its full length. Returns a colored arrow, or
@@ -110,8 +113,31 @@ function paceArrow(usedPct, remainingSec, windowSec, minElapsedSec) {
   if (elapsedSec <= minElapsedSec) return null;
   const projected = usedPct * (windowSec / elapsedSec);
   if (projected < 95) return '\x1b[32m↓\x1b[0m';   // green, under pace
-  if (projected <= 105) return '\x1b[33m→\x1b[0m'; // yellow, on pace
+  if (projected <= OVER_PACE_PCT) return '\x1b[33m→\x1b[0m'; // yellow, on pace
   return '\x1b[31m↑\x1b[0m';                       // red, over pace
+}
+
+// Coarse duration for the over-pace hint: minutes under an hour, then whole
+// hours rounded up (a pause shorter than shown would not be enough), then days.
+function formatPause(seconds) {
+  if (seconds < 3600) return `${Math.max(1, Math.ceil(seconds / 60))}m`;
+  const hours = Math.ceil(seconds / 3600);
+  if (hours < 24) return `${hours}h`;
+  const rem = hours % 24;
+  return rem ? `${Math.floor(hours / 24)}d${rem}h` : `${hours / 24}d`;
+}
+
+// What to do about a window running over pace. `ideal` is the share the window
+// would be at by now if usage were spread evenly across it — the point where
+// the projection lands on exactly 100%. `pause` is how long a full stop would
+// take for the clock to catch up with the usage already spent: past that
+// point you are back on pace. Returns null unless the projection is red.
+function overPaceHint(usedPct, remainingSec, windowSec) {
+  const elapsedSec = Math.max(0, windowSec - remainingSec);
+  if (elapsedSec <= 0 || usedPct * (windowSec / elapsedSec) <= OVER_PACE_PCT) return null;
+  const ideal = Math.round((elapsedSec / windowSec) * 100);
+  const pauseSec = (usedPct / 100) * windowSec - elapsedSec;
+  return `\x1b[2mideal\x1b[0m ${ideal}% \x1b[2m· pause\x1b[0m ${formatPause(pauseSec)}`;
 }
 
 function gitBranch(dir) {
@@ -286,7 +312,8 @@ process.stdin.on('end', () => {
           // Pace: project weekly usage at current daily burn rate
           if (cfg.pace) {
             const arrow = paceArrow(sd.used_percentage, diff, 7 * 24 * 3600, 3600);
-            if (arrow) limParts.push(`\x1b[2mpace:\x1b[0m ${arrow}`);
+            const hint = arrow ? overPaceHint(sd.used_percentage, diff, 7 * 24 * 3600) : null;
+            if (arrow) limParts.push(`\x1b[2mpace:\x1b[0m ${arrow}${hint ? ` ${hint}` : ''}`);
           }
         }
       }

@@ -9,6 +9,16 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-10-07
+
+### Added
+
+- **The weekly pace arrow now tells you how to get back on track.** When `pace: ↑` turns red, it
+  is followed by `ideal 30% · pause 1d2h`: `ideal` is where the weekly bar would be by now if
+  usage were spread evenly across the week, and `pause` is how long a full stop takes for the
+  clock to catch up with what you already spent (each point over `ideal` is about 1h41m). Under
+  or on pace nothing changes. Follows the existing `pace` config key.
+
 ## 2026-09-24
 
 ### Changed
