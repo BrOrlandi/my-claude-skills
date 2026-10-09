@@ -9,6 +9,16 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-10-09
+
+### Changed
+
+- **The pace arrows stay yellow in a tighter band.** `→` now means the projection lands within
+  2.5% of the allowance (97.5–102.5%) instead of 5% (95–105%), so the arrows turn green or red
+  sooner. With 40% of the week gone, yellow now covers 39–41% used instead of 38–42%. Applies to
+  both the `current:` and the weekly arrow, and the weekly `ideal` / `pause` hint appears as soon
+  as the arrow turns red.
+
 ## 2026-10-07
 
 ### Added

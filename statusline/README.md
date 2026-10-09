@@ -46,9 +46,12 @@ clock there is nothing to shade, and the bar is plain `●`/`○`. The shaded re
 Both arrows project the window's usage at the burn rate so far — usage spent divided by time
 elapsed, extrapolated to the end of the window:
 
-  - `↓` green — on track (projected <95%)
-  - `→` yellow — borderline (projected 95–105%)
-  - `↑` red — over pace (projected >105%)
+  - `↓` green — on track (projected <97.5%)
+  - `→` yellow — borderline (projected 97.5–102.5%)
+  - `↑` red — over pace (projected >102.5%)
+
+In terms of the bar, yellow means usage within 2.5% of the share of the window already elapsed:
+at 40% of the week gone, that is 39–41%.
 
 The session arrow appears 15 minutes into a 5-hour window, the weekly one an hour into the week —
 before that there is too little elapsed time for the projection to mean anything.

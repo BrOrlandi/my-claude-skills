@@ -100,8 +100,10 @@ function colorByPct(pct) {
   return '\x1b[31m';                       // red
 }
 
-// Projected usage above which the pace arrow turns red.
-const OVER_PACE_PCT = 105;
+// The pace arrow is yellow while the projection sits within 2.5% of the full
+// allowance; below that band it turns green, above it red.
+const UNDER_PACE_PCT = 97.5;
+const OVER_PACE_PCT = 102.5;
 
 // Pace arrow: project a rate-limit window's usage at the current burn rate.
 // `usedPct` is the percentage already spent, `remainingSec` how long the window
@@ -112,7 +114,7 @@ function paceArrow(usedPct, remainingSec, windowSec, minElapsedSec) {
   const elapsedSec = Math.max(0, windowSec - remainingSec);
   if (elapsedSec <= minElapsedSec) return null;
   const projected = usedPct * (windowSec / elapsedSec);
-  if (projected < 95) return '\x1b[32m↓\x1b[0m';   // green, under pace
+  if (projected < UNDER_PACE_PCT) return '\x1b[32m↓\x1b[0m'; // green, under pace
   if (projected <= OVER_PACE_PCT) return '\x1b[33m→\x1b[0m'; // yellow, on pace
   return '\x1b[31m↑\x1b[0m';                       // red, over pace
 }
