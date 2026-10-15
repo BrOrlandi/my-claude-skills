@@ -9,6 +9,16 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-10-15
+
+### Added
+
+- **The 5-hour arrow gets the catch-up hint too.** When the `current:` arrow turns red it is now
+  followed by `ideal 30% · pause 30m`, the same pair the weekly arrow already showed: where the
+  5-hour bar would be by now at an even pace, and how long a full stop takes to get back on it
+  (each point over `ideal` is 3 minutes). Under or on pace nothing changes. Follows the `pace`
+  config key.
+
 ## 2026-10-09
 
 ### Changed

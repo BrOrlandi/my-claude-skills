@@ -23,7 +23,8 @@ resets 4:00pm (4h10m)               | resets Thu, 4:00pm | caveman off
 
 Appears only when the Claude Code payload includes `rate_limits` (Pro/Max subscribers, after the first API response).
 
-- **current** — 5-hour window usage as a dot bar + percentage, followed by a bare pace arrow
+- **current** — 5-hour window usage as a dot bar + percentage, followed by a bare pace arrow (and
+  the same catch-up hint as the weekly one when it turns red)
 - **weekly** — 7-day window usage as a dot bar + percentage
 - **pace** — arrow projecting weekly usage at the current daily burn rate. When it turns red, a
   catch-up hint follows it (see [Over pace](#over-pace))
@@ -58,22 +59,22 @@ before that there is too little elapsed time for the projection to mean anything
 
 ### Over pace
 
-When the weekly arrow is red, two numbers follow it:
+When a pace arrow is red, two numbers follow it:
 
 ```
-weekly: ●●●●●●●●●○○○○○○○○○○○ 45% | pace: ↑ ideal 30% · pause 1d2h
+current: ●●●●●●●●○○○○○○○○○○○○ 40% ↑ ideal 30% · pause 30m | weekly: ●●●●●●●●●○○○○○○○○○○○ 45% | pace: ↑ ideal 30% · pause 1d2h
 ```
 
-- **ideal** — where the weekly bar would be by now if usage were spread evenly across the week,
-  i.e. the share of the week already elapsed. It is the number the bar does not show when you are
+- **ideal** — where the bar would be by now if usage were spread evenly across the window,
+  i.e. the share of the window already elapsed. It is the number the bar does not show when you are
   ahead of the clock, since there is no `◍` region to mark it.
 - **pause** — how long a full stop would take for the clock to catch up with what you already
   spent. Each point above `ideal` is worth 1h41m of the week (168h ÷ 100), so 15 points over
-  is about 25h. Once that time has passed you are back on pace; using less instead of stopping
-  stretches it. Hours round up, and anything past a day shows as `1d2h`.
+  is about 25h; in the 5-hour window a point is worth 3 minutes, so 10 points over is 30m. Once that time has passed you are back on pace; using less instead of stopping
+  stretches it. Under an hour it shows minutes, then hours rounded up, and anything past a day
+  shows as `1d2h`.
 
-Only the weekly window gets the hint: the 5-hour window resets too quickly for a pause to be worth
-planning around. It follows the `pace` config key.
+It follows the `pace` config key.
 
 Dot-bar colors (current): dim <30% · green <60% · yellow <80% · orange <90% · red ≥90%.
 

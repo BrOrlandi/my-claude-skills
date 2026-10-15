@@ -274,7 +274,8 @@ process.stdin.on('end', () => {
       if (fh && typeof fh.used_percentage === 'number') {
         const pct = Math.round(fh.used_percentage);
         const color = colorByPct(pct);
-        // Pace for the 5-hour window: arrow only, no label.
+        // Pace for the 5-hour window: arrow with no label, plus the catch-up
+        // hint when it turns red.
         const arrow = (cfg.pace && typeof fh.resets_at === 'number')
           ? paceArrow(fh.used_percentage, fh.resets_at - now, 5 * 3600, 900)
           : null;
@@ -284,7 +285,8 @@ process.stdin.on('end', () => {
           : null;
         let slot = null;
         if (cfg.rateLimits) {
-          const suffix = arrow ? ` ${arrow}` : '';
+          const hint = arrow ? overPaceHint(fh.used_percentage, fh.resets_at - now, 5 * 3600) : null;
+          const suffix = arrow ? ` ${arrow}${hint ? ` ${hint}` : ''}` : '';
           slot = limParts.push(`\x1b[2mcurrent:\x1b[0m ${color}${dotBar(pct, elapsed, color)} ${pct}%\x1b[0m${suffix}`) - 1;
         }
         if (cfg.resets && typeof fh.resets_at === 'number') {

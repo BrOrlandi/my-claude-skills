@@ -308,7 +308,7 @@ Then walk the rows:
 | Row | Shows |
 | --- | ----- |
 | 1 | project · git branch · model + effort level · context bar (colour-coded, goes 💀 red past 80%) |
-| 2 | rate-limit usage — 5-hour window, 7-day window, each with a pace arrow projecting whether you'll blow that limit at the current burn rate, and a dim `◍` region in the bar marking the time that passed without being spent; when the week runs over pace it also shows the share you should be at (`ideal`) and how long a full stop takes to get back on pace (`pause`) (Pro/Max only) |
+| 2 | rate-limit usage — 5-hour window, 7-day window, each with a pace arrow projecting whether you'll blow that limit at the current burn rate, and a dim `◍` region in the bar marking the time that passed without being spent; when a window runs over pace it also shows the share you should be at (`ideal`) and how long a full stop takes to get back on pace (`pause`) (Pro/Max only) |
 | 3 | when each limit resets, plus the active [caveman](https://github.com/JuliusBrussee/caveman) mode if that plugin is installed |
 | 4 | `❯ your last prompt`, truncated — needs the last-prompt hooks from Step 4b |
 
