@@ -9,6 +9,18 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-10-23
+
+### Added
+
+- **`/gh-follow` watches your pull requests.** Name one or more PRs (URL, `owner/repo#N` or a
+  number), or pass `--mine` for every open PR you authored, and Claude reports each new comment,
+  review, approval, change request, CI result and merge conflict as it happens, plus a `READY`
+  alert when a PR is approved, green and mergeable. With `--auto-merge` it merges the PR as soon
+  as someone approves (`--merge-method` picks squash, merge or rebase). `--once` just tells you
+  what changed since the last check. It polls GitHub every 60 s; state is saved per PR, so a
+  restarted watch reports what happened while it was off.
+
 ## 2026-10-15
 
 ### Added
