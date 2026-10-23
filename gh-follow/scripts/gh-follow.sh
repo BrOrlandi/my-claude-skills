@@ -14,6 +14,8 @@
 #   --mine                 Also follow every open PR authored by you
 #   --interval <seconds>   Poll interval (default 60)
 #   --once                 Check once, print what changed since the last check, exit
+#   --until-event          Keep polling silently; exit right after the first round that
+#                          produced an event (FOLLOWING does not count)
 #   --auto-merge           Merge a PR as soon as it becomes READY
 #   --merge-method <m>     squash | merge | rebase (default squash)
 #   --delete-branch        Delete the head branch after an auto-merge
@@ -42,6 +44,8 @@ set -uo pipefail
 
 INTERVAL=60
 ONCE=0
+UNTIL_EVENT=0
+GOT_EVENT=0
 MINE=0
 AUTO_MERGE=0
 MERGE_METHOD="squash"
@@ -56,13 +60,14 @@ while [ $# -gt 0 ]; do
     --mine) MINE=1 ;;
     --interval) INTERVAL="$2"; shift ;;
     --once) ONCE=1 ;;
+    --until-event) UNTIL_EVENT=1 ;;
     --auto-merge) AUTO_MERGE=1 ;;
     --merge-method) MERGE_METHOD="$2"; shift ;;
     --delete-branch) DELETE_BRANCH=1 ;;
     --include-self) INCLUDE_SELF=1 ;;
     --notify) NOTIFY=1 ;;
     --reset) RESET=1 ;;
-    -h|--help) sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "Unknown option: $1" >&2; exit 2 ;;
     *) ARGS+=("$1") ;;
   esac
@@ -141,6 +146,7 @@ state_file() {
 
 emit() {
   echo "$1"
+  [ "${1%% *}" != "FOLLOWING" ] && GOT_EVENT=1
   if [ "$NOTIFY" = 1 ] && command -v osascript >/dev/null 2>&1; then
     local text="${1//\\/\\\\}"
     text="${text//\"/\\\"}"
@@ -269,6 +275,7 @@ while :; do
     exit 0
   fi
   [ "$ONCE" = 1 ] && exit 0
+  [ "$UNTIL_EVENT" = 1 ] && [ "$GOT_EVENT" = 1 ] && exit 0
 
   REFS=("${ACTIVE[@]}")
   FAILS_BY=("${ACTIVE_FAILS[@]}")

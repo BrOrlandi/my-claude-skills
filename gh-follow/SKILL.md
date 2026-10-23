@@ -38,25 +38,27 @@ convention when obvious (e.g. only squash allowed), otherwise the default `squas
 
 **Quick check** (`--once`): run it with Bash and summarize the output.
 
-**Watching**: start it with the `Monitor` tool, so each event line becomes a notification while
-you keep working:
+**Watching** is two steps:
 
-- `command`: `~/.claude/skills/gh-follow/scripts/gh-follow.sh <args>`
-- `description`: name the PRs, e.g. `PR activity on app-frontend#5317`
-- `timeout_ms`: the maximum (`1800000`)
+1. Run `~/.claude/skills/gh-follow/scripts/gh-follow.sh --once <args>` with Bash. It prints a
+   `FOLLOWING` line per PR (and any news since the last check) and saves each PR's snapshot in
+   `~/.cache/gh-follow/`. Tell the user which PRs are being followed, one line each.
+2. Start `~/.claude/skills/gh-follow/scripts/gh-follow.sh --until-event <args>` with Bash and
+   `run_in_background: true`. It polls silently and exits right after the first poll that found
+   something, printing those events. You are woken up only then.
 
-When the monitor expires, re-arm it with the same command without asking. The script stores
-each PR's last snapshot in `~/.cache/gh-follow/`, so events that happened in between are
-reported on restart; nothing is lost. Stop re-arming after `DONE` (every PR merged or closed)
-or when the user says to stop (`TaskStop`).
+When it exits with events, relay them and start step 2 again with the same arguments, without
+asking. Snapshots persist, so nothing that happened between runs is lost. Stop after `DONE`
+(every PR merged or closed) or when the user says to stop (`TaskStop`).
 
-The first check of a PR prints `FOLLOWING` with its current status. Tell the user the PRs are
-being followed, with that status in one line each, and keep going.
+Do not use the `Monitor` tool for this: a monitor expires after at most 30 minutes and wakes the
+agent just to be re-armed, while a background Bash command has no deadline.
 
 ## Token cost
 
-The script polls in the shell, so a quiet PR costs no tokens. The agent only wakes up for an
-event line and when the monitor expires (every 30 minutes) to re-arm it. Keep those turns short:
+The script polls in the shell, so a quiet PR costs no tokens, however long it stays quiet. The
+agent only wakes up when a poll finds events (all events of that poll arrive together, in one
+turn). Keep those turns short:
 relay the event, do not re-check the PR with extra `gh` calls unless the user asks.
 
 ## Output events
