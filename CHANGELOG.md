@@ -18,8 +18,11 @@ History starts here: earlier work is in the git log, not in this file.
   review, approval, change request, CI result and merge conflict as it happens, plus a `READY`
   alert when a PR is approved, green and mergeable. With `--auto-merge` it merges the PR as soon
   as someone approves (`--merge-method` picks squash, merge or rebase). `--once` just tells you
-  what changed since the last check. It polls GitHub every 60 s; state is saved per PR, so a
-  restarted watch reports what happened while it was off.
+  what changed since the last check. With the `cli/gh-webhook` extension installed, repos you
+  are admin of get live events through `gh webhook forward` and are only polled every 5
+  minutes as a safety net. Every other repo is polled every 60 s. State is saved per PR, so a
+  restarted watch reports what happened while it was off. The agent is only woken up when
+  there is news.
 
 ## 2026-10-15
 

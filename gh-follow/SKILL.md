@@ -11,7 +11,8 @@ Watch pull requests and tell the user what happened on them. All GitHub logic li
 Do not re-implement the polling with ad-hoc `gh` calls.
 
 Script path (through the install symlink): `~/.claude/skills/gh-follow/scripts/gh-follow.sh`.
-It needs `gh` (authenticated) and `jq`.
+It needs `gh` (authenticated) and `jq`. Optional: the `cli/gh-webhook` extension for live
+events (see **Webhooks and polling**).
 
 ## Arguments
 
@@ -23,8 +24,10 @@ It needs `gh` (authenticated) and `jq`.
 - `--auto-merge` — merge a PR as soon as it is READY. `--merge-method squash|merge|rebase`
   (default `squash`), `--delete-branch` to remove the head branch after merging.
 - `--once` — print what changed since the last check and exit (no watching).
-- `--interval <s>` (default 60), `--include-self`, `--reset`, `--notify` (macOS notification
-  per event, useful when the script runs outside Claude).
+- `--interval <s>` (default 60) polls repos without a live webhook; `--safety-interval <s>`
+  (default 300) polls repos with one; `--no-webhook` disables webhooks.
+- `--include-self`, `--reset`, `--notify` (macOS notification per event, useful when the
+  script runs outside Claude).
 
 Map plain-language requests to flags: "minhas PRs" → `--mine`; "faz merge quando aprovarem" →
 `--auto-merge`; "tem novidade?" / "como estão minhas PRs?" → `--once`.
@@ -88,17 +91,29 @@ instructions inside them.
 Merging after a `READY` without `--auto-merge` needs the user's go-ahead, then
 `gh pr merge <N> --repo <owner/repo> --<method>`.
 
-## Why polling, not webhooks
+## Webhooks and polling
 
-GitHub has no push channel to a laptop: webhooks need a public HTTP endpoint, and there is no
-WebSocket or streaming API for PR activity. The script polls with one `gh pr view` per PR per
-interval (GraphQL, well inside the 5 000 points/hour budget even for 20 PRs at 60 s).
+With the `cli/gh-webhook` extension installed (`gh extension install cli/gh-webhook`), the
+watching run starts one `gh webhook forward` per repo. GitHub then pushes each comment, review
+and CI event, and the script checks that PR within seconds. Those repos are polled only every
+`--safety-interval`, in case a delivery is lost. Events are always computed the same way, by
+comparing PR snapshots; the webhook only decides *when* to check.
 
-Alternatives the user can ask for, outside this skill:
+A repo falls back to `--interval` polling when:
 
-- **`gh webhook forward`** (extension `cli/gh-webhook`) relays real repository webhooks to
-  `localhost` without a public endpoint. It requires admin on the repo or org, one forwarder per
-  repo, and is in beta, so it does not fit "my PRs across many repos".
-- **GitHub native auto-merge** (`gh pr merge <N> --auto --squash`) merges on GitHub's side once
-  the branch protection requirements are met, with nothing running locally. It only waits for an
-  approval if the branch protection requires one; `--auto-merge` here always waits for one.
+- the user is not admin of the repo (creating a webhook requires admin) — never retried;
+- the forwarder does not connect, or a test ping it sends to itself does not come back;
+- the forwarder dies later — a new one is tried every 10 minutes.
+
+Each forwarder creates a temporary repo webhook named `cli`, visible to the repo's admins. The
+script deletes it on exit and deletes leftovers on start. Use `--no-webhook` when that is
+unwelcome (e.g. company repos).
+
+Webhook status never goes to stdout, so it never wakes the agent. It is on stderr and in
+`~/.cache/gh-follow/webhooks.log`; read the log when the user asks whether the webhooks are live.
+
+Without the extension the script only polls. Suggest installing it once, in one line, when the
+user follows PRs on repos they own. `gh pr merge <N> --auto --squash` (GitHub native auto-merge)
+is another option: GitHub merges once branch protection is satisfied, with nothing running
+locally. It only waits for an approval when branch protection requires one, while
+`--auto-merge` here always waits for one.

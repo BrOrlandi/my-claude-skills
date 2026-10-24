@@ -12,7 +12,9 @@
 #
 # Options:
 #   --mine                 Also follow every open PR authored by you
-#   --interval <seconds>   Poll interval (default 60)
+#   --interval <seconds>   Poll interval without a live webhook (default 60)
+#   --safety-interval <s>  Poll interval for repos with a live webhook (default 300)
+#   --no-webhook           Never start webhook forwarders; poll only
 #   --once                 Check once, print what changed since the last check, exit
 #   --until-event          Keep polling silently; exit right after the first round that
 #                          produced an event (FOLLOWING does not count)
@@ -37,12 +39,22 @@
 #   ERROR              repeated failures fetching a PR
 #   DONE               nothing left to follow (exit 0)
 #
+# Webhooks: when the gh-webhook extension is installed (gh extension install cli/gh-webhook),
+# a `gh webhook forward` runs per repo. Each delivery triggers an immediate check of the PR it
+# is about, so a repo with a live forwarder is only polled every --safety-interval. A repo
+# whose forwarder cannot start (no admin, extension missing) or dies falls back to
+# --interval polling, and a new forwarder is tried every 10 minutes. The forwarder creates a
+# temporary repo webhook (name "cli"); it is deleted on exit. Webhook status goes to stderr
+# and to ${XDG_CACHE_HOME:-~/.cache}/gh-follow/webhooks.log, never to stdout.
+#
 # State is kept per PR in ${XDG_CACHE_HOME:-~/.cache}/gh-follow/, so a restarted follow
 # reports what happened while it was not running instead of starting blind.
 
 set -uo pipefail
 
 INTERVAL=60
+SAFETY_INTERVAL=300
+WEBHOOK=1
 ONCE=0
 UNTIL_EVENT=0
 GOT_EVENT=0
@@ -59,6 +71,8 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --mine) MINE=1 ;;
     --interval) INTERVAL="$2"; shift ;;
+    --safety-interval) SAFETY_INTERVAL="$2"; shift ;;
+    --no-webhook) WEBHOOK=0 ;;
     --once) ONCE=1 ;;
     --until-event) UNTIL_EVENT=1 ;;
     --auto-merge) AUTO_MERGE=1 ;;
@@ -67,7 +81,7 @@ while [ $# -gt 0 ]; do
     --include-self) INCLUDE_SELF=1 ;;
     --notify) NOTIFY=1 ;;
     --reset) RESET=1 ;;
-    -h|--help) sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,51p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "Unknown option: $1" >&2; exit 2 ;;
     *) ARGS+=("$1") ;;
   esac
@@ -249,35 +263,239 @@ check_pr() {
   return 0
 }
 
+# --- Webhook forwarders ----------------------------------------------------------------
+
+FORWARDER_URL="https://webhook-forwarder.github.com/hook"
+WEBHOOK_EVENTS="pull_request,pull_request_review,pull_request_review_comment,pull_request_review_thread,issue_comment,check_suite,status"
+WEBHOOK_LOG="$STATE_DIR/webhooks.log"
+WEBHOOK_RETRY=600
+WEBHOOK_CONNECT_WAIT=60
+WEBHOOK_PING_WAIT=30
+
+# Parallel arrays, one entry per repo (bash 3.2 has no maps).
+# WH_STATE: starting (connecting) | pinged (own ping sent, awaiting it) | live | failed (retried) | denied (no admin, never retried)
+WH_REPOS=(); WH_PID=(); WH_STATE=(); WH_SINCE=(); WH_LINES=()
+RUN_DIR=""
+
+wh_log() {
+  local line
+  line="$(date '+%Y-%m-%d %H:%M:%S') $*"
+  echo "webhook: $*" >&2
+  echo "$line" >> "$WEBHOOK_LOG"
+}
+
+# Deletes forwarder hooks left on a repo (gh webhook forward never removes its own, and a
+# leftover one makes the next forward fail with "Hook already exists"). Fails without admin.
+wh_delete_hooks() {
+  local repo="$1" ids id
+  ids=$(gh api "repos/$repo/hooks" --jq ".[] | select(.config.url == \"$FORWARDER_URL\") | .id" 2>/dev/null) || return 1
+  for id in $ids; do
+    gh api -X DELETE "repos/$repo/hooks/$id" >/dev/null 2>&1 || true
+  done
+}
+
+wh_ping() {
+  local repo="$1" id
+  for id in $(gh api "repos/$repo/hooks" --jq ".[] | select(.config.url == \"$FORWARDER_URL\") | .id" 2>/dev/null); do
+    gh api -X POST "repos/$repo/hooks/$id/pings" >/dev/null 2>&1 || true
+  done
+}
+
+wh_start() {
+  local i="$1" repo="${WH_REPOS[$1]}" slug
+  slug=$(echo "$repo" | tr '/' '_')
+  WH_SINCE[$i]=$(date +%s)
+  WH_LINES[$i]=0
+  if ! wh_delete_hooks "$repo"; then
+    WH_STATE[$i]=denied
+    wh_log "$repo: cannot manage webhooks (needs admin on the repo), polling every ${INTERVAL}s"
+    return
+  fi
+  : > "$RUN_DIR/$slug.events"
+  gh webhook forward --repo="$repo" --events="$WEBHOOK_EVENTS" \
+    > "$RUN_DIR/$slug.events" 2> "$RUN_DIR/$slug.err" &
+  WH_PID[$i]=$!
+  WH_STATE[$i]=starting
+}
+
+wh_stop() {
+  local i="$1"
+  if [ -n "${WH_PID[$i]:-}" ]; then
+    # `gh webhook forward` runs the extension as a child that outlives gh; kill it too, or
+    # the orphan keeps the connection and swallows the next forwarder's deliveries.
+    pkill -TERM -P "${WH_PID[$i]}" 2>/dev/null || true
+    kill "${WH_PID[$i]}" 2>/dev/null || true
+    wait "${WH_PID[$i]}" 2>/dev/null || true
+    WH_PID[$i]=""
+  fi
+  wh_delete_hooks "${WH_REPOS[$i]}" || true
+}
+
+cleanup() {
+  local i
+  for ((i = 0; i < ${#WH_REPOS[@]}; i++)); do
+    case "${WH_STATE[$i]}" in failed|denied) ;; *) wh_stop "$i" ;; esac
+  done
+  [ -n "$RUN_DIR" ] && rm -rf "$RUN_DIR"
+}
+
+repo_live() {
+  local repo="$1" i
+  for ((i = 0; i < ${#WH_REPOS[@]}; i++)); do
+    [ "${WH_REPOS[$i]}" = "$repo" ] && [ "${WH_STATE[$i]}" = live ] && return 0
+  done
+  return 1
+}
+
+# Maps one delivery to the PRs it concerns: "owner/repo#N", "owner/repo#*" when the event
+# does not name a PR (a commit status), or "PING" for the hook's creation ping.
+TRIGGER_JQ='
+if .zen then "PING"
+else .repository.full_name as $r
+  | ([.pull_request.number?, (if .issue.pull_request? then .issue.number else empty end),
+      (.check_suite.pull_requests[]?.number)] | map(select(. != null)) | unique) as $n
+  | if ($n | length) > 0 then ($n[] | "\($r)#\(.)") else "\($r)#*" end
+end'
+
+# Reads new deliveries of every forwarder, updates its health, and prints triggered refs.
+wh_poll() {
+  local i repo slug file total now err line
+  now=$(date +%s)
+  for ((i = 0; i < ${#WH_REPOS[@]}; i++)); do
+    repo="${WH_REPOS[$i]}"
+    slug=$(echo "$repo" | tr '/' '_')
+    file="$RUN_DIR/$slug.events"
+
+    [ "${WH_STATE[$i]}" = denied ] && continue
+    if [ "${WH_STATE[$i]}" = failed ]; then
+      if [ $((now - WH_SINCE[$i])) -ge "$WEBHOOK_RETRY" ]; then
+        wh_log "$repo: retrying the webhook forwarder"
+        wh_start "$i"
+      fi
+      continue
+    fi
+
+    total=$(wc -l < "$file" 2>/dev/null | tr -d ' ')
+    total=${total:-0}
+    if [ "$total" -gt "${WH_LINES[$i]}" ]; then
+      while IFS= read -r line; do
+        if [ "$line" = PING ]; then
+          if [ "${WH_STATE[$i]}" != live ]; then
+            WH_STATE[$i]=live
+            wh_log "$repo: webhook live, polling only every ${SAFETY_INTERVAL}s"
+          fi
+        else
+          echo "$line"
+        fi
+      done < <(tail -n "+$((WH_LINES[$i] + 1))" "$file" | head -n "$((total - WH_LINES[$i]))" \
+                 | jq -r "$TRIGGER_JQ" 2>/dev/null)
+      WH_LINES[$i]=$total
+    fi
+
+    if ! kill -0 "${WH_PID[$i]}" 2>/dev/null; then
+      err=$(grep -v -e '^notice:' -e '^Forwarding' -e '^\[LOG\]' "$RUN_DIR/$slug.err" 2>/dev/null | head -2 | tr '\n' ' ')
+      wh_log "$repo: webhook forwarder stopped (${err:-no error output}), polling every ${INTERVAL}s"
+      WH_PID[$i]=""
+      wh_delete_hooks "$repo" || true
+      WH_STATE[$i]=failed
+      WH_SINCE[$i]=$now
+    elif [ "${WH_STATE[$i]}" = starting ]; then
+      # GitHub's creation ping can arrive before the forwarder is connected and get lost, so
+      # once connected send our own ping: a delivery that comes back proves the whole path.
+      if grep -q '^Forwarding' "$RUN_DIR/$slug.err" 2>/dev/null; then
+        wh_ping "$repo"
+        WH_STATE[$i]=pinged
+        WH_SINCE[$i]=$now
+      elif [ $((now - WH_SINCE[$i])) -ge "$WEBHOOK_CONNECT_WAIT" ]; then
+        wh_log "$repo: forwarder did not connect in ${WEBHOOK_CONNECT_WAIT}s, polling every ${INTERVAL}s"
+        wh_stop "$i"
+        WH_STATE[$i]=failed
+        WH_SINCE[$i]=$now
+      fi
+    elif [ "${WH_STATE[$i]}" = pinged ] && [ $((now - WH_SINCE[$i])) -ge "$WEBHOOK_PING_WAIT" ]; then
+      wh_log "$repo: ping not delivered after ${WEBHOOK_PING_WAIT}s, polling every ${INTERVAL}s"
+      wh_stop "$i"
+      WH_STATE[$i]=failed
+      WH_SINCE[$i]=$now
+    fi
+  done
+}
+
 # --- Main loop -------------------------------------------------------------------------
 
 if [ "$RESET" = 1 ]; then
   for ref in "${REFS[@]}"; do rm -f "$(state_file "$ref")"; done
 fi
 
-# Per-PR consecutive failure counters, kept in a parallel array (bash 3.2 has no maps).
-FAILS_BY=()
-for i in "${!REFS[@]}"; do FAILS_BY[$i]=0; done
+# Per-PR state in parallel arrays: consecutive fetch failures, next check (epoch seconds),
+# a pending re-check after a webhook trigger, and whether the PR is still followed.
+FAILS_BY=(); NEXT_BY=(); RECHECK_BY=(); OPEN_BY=()
+for i in "${!REFS[@]}"; do FAILS_BY[$i]=0; NEXT_BY[$i]=0; RECHECK_BY[$i]=0; OPEN_BY[$i]=1; done
+
+if [ "$ONCE" = 0 ] && [ "$WEBHOOK" = 1 ]; then
+  if gh extension list 2>/dev/null | grep -q 'gh-webhook'; then
+    RUN_DIR=$(mktemp -d "${TMPDIR:-/tmp}/gh-follow.XXXXXX")
+    trap cleanup EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    for ref in "${REFS[@]}"; do
+      repo="${ref%#*}"
+      seen=0
+      for r in ${WH_REPOS[@]+"${WH_REPOS[@]}"}; do [ "$r" = "$repo" ] && seen=1; done
+      [ "$seen" = 0 ] && WH_REPOS+=("$repo")
+    done
+    for ((i = 0; i < ${#WH_REPOS[@]}; i++)); do wh_start "$i"; done
+  else
+    wh_log "gh-webhook extension not installed (gh extension install cli/gh-webhook), polling every ${INTERVAL}s"
+  fi
+fi
 
 while :; do
-  ACTIVE=()
-  ACTIVE_FAILS=()
+  now=$(date +%s)
+  checked=0
+
+  if [ -n "$RUN_DIR" ]; then
+    # Redirect instead of a pipe: wh_poll must run in this shell to keep forwarder state.
+    wh_poll > "$RUN_DIR/triggers"
+    while IFS= read -r trig; do
+      for i in "${!REFS[@]}"; do
+        [ "${OPEN_BY[$i]}" = 1 ] || continue
+        if [ "${REFS[$i]}" = "$trig" ] || [ "${REFS[$i]%#*}#*" = "$trig" ]; then
+          # Give GitHub's API a moment to reflect the change, then re-check once more later
+          # for state it computes lazily (merge status, review decision).
+          [ "${NEXT_BY[$i]}" -gt $((now + 3)) ] && NEXT_BY[$i]=$((now + 3))
+          RECHECK_BY[$i]=1
+        fi
+      done
+    done < "$RUN_DIR/triggers"
+  fi
+
   for i in "${!REFS[@]}"; do
+    [ "${OPEN_BY[$i]}" = 1 ] || continue
+    [ "${NEXT_BY[$i]}" -le "$now" ] || continue
     FAILS=${FAILS_BY[$i]}
-    if check_pr "${REFS[$i]}"; then
-      ACTIVE+=("${REFS[$i]}")
-      ACTIVE_FAILS+=("$FAILS")
+    check_pr "${REFS[$i]}" || OPEN_BY[$i]=0
+    FAILS_BY[$i]=$FAILS
+    checked=1
+    if [ "${RECHECK_BY[$i]}" = 1 ]; then
+      NEXT_BY[$i]=$((now + 30)); RECHECK_BY[$i]=0
+    elif repo_live "${REFS[$i]%#*}"; then
+      NEXT_BY[$i]=$((now + SAFETY_INTERVAL))
+    else
+      NEXT_BY[$i]=$((now + INTERVAL))
     fi
   done
 
-  if [ ${#ACTIVE[@]} -eq 0 ]; then
-    echo "DONE every followed pull request is merged or closed"
-    exit 0
+  if [ "$checked" = 1 ]; then
+    still=0
+    for i in "${!REFS[@]}"; do [ "${OPEN_BY[$i]}" = 1 ] && still=1; done
+    if [ "$still" = 0 ]; then
+      echo "DONE every followed pull request is merged or closed"
+      exit 0
+    fi
+    [ "$ONCE" = 1 ] && exit 0
+    [ "$UNTIL_EVENT" = 1 ] && [ "$GOT_EVENT" = 1 ] && exit 0
   fi
-  [ "$ONCE" = 1 ] && exit 0
-  [ "$UNTIL_EVENT" = 1 ] && [ "$GOT_EVENT" = 1 ] && exit 0
 
-  REFS=("${ACTIVE[@]}")
-  FAILS_BY=("${ACTIVE_FAILS[@]}")
-  sleep "$INTERVAL"
+  sleep 2
 done
