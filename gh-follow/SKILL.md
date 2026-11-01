@@ -54,8 +54,8 @@ conflicts) while the session runs and the Mac is awake. Before starting it, tell
 one line per PR, the HEAD commit being authorized (`gh pr view <N> --json headRefOid`) and that
 a push after that point still gets merged by the local watcher, a known gap.
 
-The target is the central service on the Oracle VPS (`references/central-service.md`, not
-built yet): the skill registers the PR and an authorization pinned to its HEAD, and the
+The target is the GH-follow service at `gh-follow.brorlandi.xyz` on the Oracle VPS
+(`references/central-service.md`, not built yet): the skill registers the PR and an authorization pinned to its HEAD, and the
 service merges under the policy in `references/merge-after-approval.md` (valid approval on
 HEAD, checks policy chosen per PR, no conflicts, re-checked and SHA-pinned at merge time).
 Until `~/.claude/skills/gh-follow/config.json` points at that service, use the local watcher.
