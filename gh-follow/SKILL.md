@@ -1,6 +1,6 @@
 ---
 name: gh-follow
-description: Follow one or more GitHub pull requests in the background and report each new comment, review, approval, change request, CI result, merge conflict and the moment a PR becomes ready to merge. For "merge it once approved" it prefers GitHub's native auto-merge when the repo allows it and the branch rules require an approval, and otherwise merges from the local watcher. Backed by a deterministic polling script that keeps per-PR state, so restarting the watch never loses events. Use when the user wants to monitor, watch, follow or babysit a PR ("acompanha minha PR", "me avisa quando aprovarem", "segue essas PRs", "faz merge quando aprovarem", "watch my PRs", "tell me when it's approved"), or asks whether their PRs have news.
+description: Follow one or more GitHub pull requests in the background and report each new comment, review, approval, change request, CI result, merge conflict and the moment a PR becomes ready to merge. It can merge the user's own PRs once approved, green and conflict-free, without GitHub's native auto-merge and without changing any repo setting. Backed by a deterministic polling script that keeps per-PR state, so restarting the watch never loses events. Use when the user wants to monitor, watch, follow or babysit a PR ("acompanha minha PR", "me avisa quando aprovarem", "segue essas PRs", "faz merge quando aprovarem", "watch my PRs", "tell me when it's approved"), or asks whether their PRs have news.
 argument-hint: "[PR url | owner/repo#N | N ...] [--mine] [--auto-merge] [--merge-method squash|merge|rebase] [--once]"
 ---
 
@@ -30,8 +30,8 @@ events (see **Webhooks and polling**).
   script runs outside Claude).
 
 Map plain-language requests to flags: "minhas PRs" → `--mine`; "tem novidade?" / "como estão
-minhas PRs?" → `--once`; "faz merge quando aprovarem" → the flow in **Merge after approval**
-(native auto-merge first, `--auto-merge` only as the fallback).
+minhas PRs?" → `--once`; "faz merge quando aprovarem" → `--auto-merge`, under the rules in
+**Merge after approval**.
 
 `--mine` reads at most 100 open PRs, once, at start: the search has no org filter, returns the
 most recently created first (observed, not guaranteed by GitHub), drops older ones beyond 100,
@@ -44,21 +44,21 @@ convention when obvious (e.g. only squash allowed), otherwise the default `squas
 
 ## Merge after approval
 
-Only for the user's own PRs, only when they asked for it, and never approving anything. Run the
-read-only detection in `references/merge-after-approval.md` (one GraphQL query per PR), then:
+Only for the user's own PRs, only when they asked for it in this conversation, and never
+approving anything. Native auto-merge is not used, and no repo or org setting is ever changed
+(auto-merge setting, branch protection, rulesets, webhooks, GitHub Apps); the repo's existing
+rules still apply to every merge.
 
-1. **Native auto-merge** when all hold: `autoMergeAllowed`, `viewerCanEnableAutoMerge`, not a
-   draft, and `reviewDecision` is `REVIEW_REQUIRED` or `CHANGES_REQUESTED` (the branch rules
-   require an approval). Tell the user what GitHub will wait for (required approvals, required
-   checks, no conflicts), get a yes, run `gh pr merge <N> --repo <owner/repo> --auto --<method>`,
-   then follow the PR **without** `--auto-merge` just to report events. GitHub does the merge,
-   with nothing needing to stay awake.
-2. **Local fallback** otherwise: follow with `--auto-merge`. The watcher merges only after an
-   approval, green checks and no conflicts, but only while the session runs and the Mac is awake.
+Today this is the local watcher: `--auto-merge` merges on `READY` (approved, checks green, no
+conflicts) while the session runs and the Mac is awake. Before starting it, tell the user, in
+one line per PR, the HEAD commit being authorized (`gh pr view <N> --json headRefOid`) and that
+a push after that point still gets merged by the local watcher, a known gap.
 
-Never turn on "Allow auto-merge", branch protection or rulesets for a repo or org to make
-option 1 possible: that is an admin change only the user can authorize, explicitly, per repo.
-Say which option applies and why, in one line per PR.
+The target is the central service on the Oracle VPS (`references/central-service.md`, not
+built yet): the skill registers the PR and an authorization pinned to its HEAD, and the
+service merges under the policy in `references/merge-after-approval.md` (valid approval on
+HEAD, checks policy chosen per PR, no conflicts, re-checked and SHA-pinned at merge time).
+Until `~/.claude/skills/gh-follow/config.json` points at that service, use the local watcher.
 
 ## Running it
 
@@ -137,6 +137,7 @@ Webhook status never goes to stdout, so it never wakes the agent. It is on stder
 `~/.cache/gh-follow/webhooks.log`; read the log when the user asks whether the webhooks are live.
 
 Without the extension the script only polls. Suggest installing it once, in one line, when the
-user follows PRs on repos they own. Polling costs, and the HomeServer service considered for
-when the Mac is off, are in `references/merge-after-approval.md`. Routine polling never runs
+user follows PRs on repos they own. Polling costs are in `references/merge-after-approval.md`.
+The central service will not use webhooks at all, only polling triggered by the notifications
+API. Routine polling never runs
 the model: the script is plain `gh` + `jq`, and the agent only reads the events it prints.

@@ -13,13 +13,15 @@ History starts here: earlier work is in the git log, not in this file.
 
 ### Changed
 
-- **`/gh-follow` prefers GitHub's native auto-merge for "merge it once approved".** It first
-  checks, read-only, whether the repo allows auto-merge and whether the base branch actually
-  requires an approval. When both hold, it turns on native auto-merge for your PR (after you
-  confirm), so GitHub merges it even with your Mac asleep. Otherwise it falls back to its own
-  `--auto-merge`, which always waits for an approval, green checks and no conflicts. It never
-  changes repo or org settings to make native auto-merge available, and it no longer creates
-  temporary webhooks on organization repos.
+- **`/gh-follow` keeps webhooks off organization repos.** The skill now runs the watcher with
+  `--no-webhook` whenever a followed PR is in a repo you do not own, so organizations and other
+  people's repos are polled. (Running `gh-follow.sh` by hand without that flag still forwards
+  webhooks on any repo you administer.)
+- **Merging once approved stays independent of GitHub's settings.** `--auto-merge` never relies
+  on native auto-merge and never touches a repo's auto-merge setting, branch protection or
+  rulesets; it merges your own PR only after an approval, green checks and no conflicts, and
+  the repo's own rules still apply. Before starting it, the skill now tells you which commit
+  you are authorizing.
 
 ## 2026-10-23
 

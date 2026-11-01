@@ -1,130 +1,99 @@
 # Merge after approval
 
-How `gh-follow` decides between GitHub's native auto-merge and its own local auto-merge, what each
-one depends on, and what polling costs. Everything here is read-only except the final
-`gh pr merge`, which needs the user's go-ahead.
+What "merge it once approved" means in `gh-follow`, today (the local watcher) and in the planned
+central service (`central-service.md`). The automation is personal and repository-agnostic:
+it never depends on GitHub's native auto-merge and never changes anything in a repository.
 
-## Detection (read-only, one query per PR)
+## Ground rules
 
-```bash
-gh api graphql -F n=<N> -f o=<owner> -f r=<repo> -f query='
+- Only the user's own PRs, and only those the user authorized one by one.
+- No GitHub App, no webhooks, no change to repo or org settings (auto-merge setting, branch
+  protection, rulesets). The repo's existing rules still apply: GitHub refuses a merge they do
+  not allow, and the automation never tries to bypass them (no admin override).
+- No approving PRs, neither the user's nor anyone else's. Approving third-party PRs would be a
+  separate scope with per-PR criteria and explicit authorization; it is not planned.
+- Routine checks never run the model: plain API calls compared against saved snapshots.
+
+## Merge policy (per PR, explicit)
+
+A PR is merged only when every condition holds at the moment of the merge:
+
+1. **Authorization**: the user authorized this PR, and the authorization records the HEAD
+   commit SHA it was given for. If the HEAD changes, the authorization lapses and the PR waits
+   for a new one; nothing pushed after the authorization is merged without the user seeing it.
+2. **Valid approval**: at least one review in state `APPROVED` whose commit is the current HEAD,
+   from someone other than the author, not a bot, with write access to the repo (author
+   association `OWNER`, `MEMBER` or `COLLABORATOR`). No reviewer's latest review is
+   `CHANGES_REQUESTED`. If the repo requires reviews, `reviewDecision` must be `APPROVED` too.
+3. **Checks**, per the policy chosen when authorizing:
+   - `all` (default): every check run and commit status on HEAD finished as `SUCCESS`,
+     `NEUTRAL` or `SKIPPED`; none pending, none failed.
+   - `required`: only what the branch rules require (GitHub enforces it at merge time).
+   - an explicit list of check names that must be green.
+4. **No conflicts and mergeable**: `mergeable` is `MERGEABLE` and `mergeStateStatus` is
+   `CLEAN` (or `HAS_HOOKS`). `BEHIND`, `BLOCKED`, `DIRTY`, `UNSTABLE` or `UNKNOWN` mean wait. The
+   automation does not update the branch on its own.
+5. **Not a draft, still open.**
+
+Right before merging, everything above is fetched again in one query (no cached decision), and
+the merge call pins the SHA: `PUT /repos/{owner}/{repo}/pulls/{n}/merge` with
+`sha=<authorized HEAD>` and the chosen `merge_method`. GitHub answers `409` if the head moved
+in between, so a commit pushed in the last second cannot slip in.
+
+## Today: the local watcher (`gh-follow.sh --auto-merge`)
+
+Runs only while a Claude session and the Mac are up. It merges on `READY` (approved, checks
+green, mergeable) with `gh pr merge`. Gaps compared with the policy above, to close when the
+central service exists: it does not pin the authorized HEAD, it accepts the repo's
+`reviewDecision` (or any latest approval when the repo requires none) without checking the
+approval's commit or the reviewer's access, and its checks policy is fixed to "all".
+
+## Detection fields (read-only, one GraphQL query per PR)
+
+```graphql
 query($o: String!, $r: String!, $n: Int!) {
   repository(owner: $o, name: $r) {
-    autoMergeAllowed squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed viewerPermission
+    viewerPermission squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed
     pullRequest(number: $n) {
-      author { login } isDraft state baseRefName reviewDecision mergeStateStatus
-      viewerCanEnableAutoMerge
-      autoMergeRequest { enabledAt mergeMethod enabledBy { login } }
+      author { login } state isDraft headRefOid baseRefName
+      reviewDecision mergeable mergeStateStatus
+      latestReviews(first: 50) { nodes { state author { login __typename } authorAssociation commit { oid } } }
+      commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) {
+        nodes { __typename ... on CheckRun { name status conclusion } ... on StatusContext { context state } }
+      } } } } }
     }
   }
-}'
+}
 ```
 
-| Field | Meaning |
-| --- | --- |
-| `autoMergeAllowed` | The repo setting "Allow auto-merge". Off by default; only a repo admin turns it on, and org policy may forbid it. |
-| `viewerCanEnableAutoMerge` | GitHub's own answer for this user and PR (write access, setting on, PR state). |
-| `reviewDecision` | `REVIEW_REQUIRED` / `CHANGES_REQUESTED` / `APPROVED` when the base branch rules require reviews; `null` when nothing requires a review. Readable with plain read access, so it is the signal to use, rather than the branch protection or rulesets endpoints. |
-| `mergeStateStatus` | `BLOCKED` while requirements are missing, `DIRTY` on conflicts, `CLEAN` when mergeable now. |
-| `autoMergeRequest` | Non-null when auto-merge is already on (who enabled it, which method). |
-| `*MergeAllowed` | Merge methods the repo accepts; pick one of these for `--<method>`. |
+`viewerPermission` must be `WRITE`, `MAINTAIN` or `ADMIN` for the merge to be possible at all.
+The `*MergeAllowed` fields say which merge methods the repo accepts.
 
-## Decision
+## Native auto-merge: not used
 
-| Situation | Use |
-| --- | --- |
-| `autoMergeAllowed` and `viewerCanEnableAutoMerge`, not draft, `reviewDecision` is `REVIEW_REQUIRED` or `CHANGES_REQUESTED` | Native: `gh pr merge <N> --repo <owner/repo> --auto --<method>` after the user says yes |
-| `reviewDecision` is `null` | Local `--auto-merge`. Native would merge as soon as the PR is mergeable, with no approval at all |
-| `autoMergeAllowed` is `false` | Local `--auto-merge`. Do not enable the setting without the user's explicit authorization for that repo |
-| `reviewDecision` is `APPROVED` and `mergeStateStatus` is `CLEAN` | Nothing to wait for: ask whether to merge now |
-| Draft PR | Neither: auto-merge waits for "ready for review", say so |
-
-## What native auto-merge does and does not guarantee
-
-- It is a **per-repo setting**, plus whatever the branch protection or rulesets of the base
-  branch require. GitHub merges when *those* requirements are met: required approvals,
-  required status checks, no conflicts. It does not add requirements of its own.
-- **It does not guarantee a human approval.** If the base branch does not require a review,
-  nothing waits for one. That is why the flow only uses it when `reviewDecision` is non-null.
-- Branch protection and rulesets on **private repos need a paid plan** (GitHub Pro, Team or
-  Enterprise). On a Free personal account the rulesets API answers `403 Upgrade to GitHub Pro`,
-  private repos have no required reviews, and so native auto-merge has nothing to wait for.
-- Required checks are only the ones the rules list. A workflow that is not a required check can
-  fail and the PR still merges.
-- Whether stale approvals are dismissed after a new push depends on the branch rule.
-- On a PR that is already mergeable (`CLEAN`), GitHub does not queue auto-merge, and `gh` may
-  merge right away. Check `mergeStateStatus` first. Not verified by merging a real PR.
-- GitHub turns auto-merge off when someone without write access pushes to the head branch, and
-  the merge is recorded as done by the user who enabled it.
-- If the base branch uses a merge queue, `gh pr merge` adds the PR to the queue instead.
-
-Observed on 2026-11-01 for the PRs probed (`birdie-ai/application-frontend`,
-`application-backend`, `iac-core`, `BrOrlandi/banco-bruno`, `BrOrlandi/RaceFriends`,
-`paulogdm/world-cup-2026-bracket`): `autoMergeAllowed` was `false` in all six. The three
-birdie-ai repos require 1 approval (two also require named checks), so they would qualify once
-the setting is on. The two personal private repos have no rules (`reviewDecision: null`), so
-native auto-merge would not wait for an approval there even if enabled.
+Kept here because it explains why the automation does its own merging. Native auto-merge is a
+per-repo setting ("Allow auto-merge"), off in all six repos probed on 2026-11-01
+(`birdie-ai/application-frontend`, `application-backend`, `iac-core`,
+`BrOrlandi/banco-bruno`, `BrOrlandi/RaceFriends`, `paulogdm/world-cup-2026-bracket`). Turning
+it on is an admin change, and it waits only for what the branch rules require, so on repos
+without required reviews (every private repo on a Free plan) it would merge with no approval.
 
 ## Polling cost (measured 2026-11-01)
 
-One check of one PR is one `gh pr view` → one GraphQL request, about **1 point** of the
-5,000-point/hour GraphQL budget, about 1.1 s of latency, 7–14 KB of JSON, about 0.1–0.3 s of
-CPU and a short-lived `gh` process peaking near 45 MB. The script checks PRs one after
-another and ticks every 2 s with a `date` call in between.
+One check of one PR: one GraphQL request, about 1 point of the 5,000-point/hour budget,
+~1.1 s, 7–14 KB, 0.1–0.3 s of CPU in a short-lived `gh` (~45 MB peak).
 
-| PRs at 60 s | Requests/hour | Share of the GraphQL budget | Data/hour |
+| PRs checked every 60 s | Requests/hour | GraphQL budget | Data/hour |
 | --- | --- | --- | --- |
 | 1 | 60 | 1.2% | ~0.6 MB |
 | 10 | 600 | 12% | ~6 MB |
-| 100 | ~3,300 (a round takes ~110 s, longer than the interval) | ~66% | ~40 MB |
+| 100 | ~3,300 (a sequential round takes ~110 s) | ~66% | ~40 MB |
 
-The budget is shared with every other use of the same token (other sessions, `gh` commands,
-CI tooling run locally), so 100 PRs at 60 s is not viable. With webhooks on owned repos, a PR
-costs 12 checks/hour (safety interval of 300 s) plus one per delivery.
+The budget is shared with everything else using the same token. `--mine` reads at most 100
+open PRs once at start (133 were open on 2026-11-01), so naming PRs explicitly is preferred.
 
-### Notifications API
-
-`GET /notifications` is per user and covers PRs where the user is the author, was asked to
-review, was mentioned or subscribed, in any repo, without installing anything. GitHub sends
-`X-Poll-Interval: 60` and `Last-Modified`/`ETag`. A conditional request that gets
-`304 Not Modified` does not count against the rate limit (checked: 4,931 remaining before and
-after). It tells *that* a PR changed, not *what*, so a PR fetch still follows.
-
-It does **not** cover CI: check runs and statuses do not create notifications for the PR
-author (at most a failed Actions run the user triggered). So it can replace the per-PR "is
-there news?" poll for comments and reviews, but CI and merge readiness still need a per-PR
-check on a slower schedule.
-
-## Fallback considered: a central service on the HomeServer (not built)
-
-For when merges must happen while the Mac sleeps and native auto-merge is not available. Only
-a design; nothing is deployed.
-
-| | Daemon on the Mac (today) | Service on the HomeServer |
-| --- | --- | --- |
-| Mac asleep / offline | Stops; catches up on wake (state persists) | Keeps running |
-| Credentials | Existing `gh` login, nothing new stored | A token stored on the server: fine-grained PAT limited to the repos and to Pull requests read/write + Contents read/write (merge), Checks/Commit statuses read. Orgs may require approving fine-grained tokens; a classic `repo` token works everywhere but is far broader |
-| GitHub calls | One poll per followed PR per interval, per running session (two sessions on one PR poll twice) | Deduplicated: one poll per registered PR, whatever asks for it |
-| Maintenance | None beyond the skill | A container, its token rotation, logs, backups of a small SQLite file |
-| Interface | The Claude session | A small web page plus the skill registering PRs through an API |
-
-Shape of the service, kept to what the user asked for:
-
-- Follows only PRs **explicitly registered** (by the skill or the web page), keyed by
-  `owner/repo#N`, so the same PR is never polled twice.
-- One notifications poll per `X-Poll-Interval` with `If-Modified-Since`; a PR named in a new
-  notification is checked right away.
-- Per-PR checks with an adaptive interval: about 60 s while CI is running or right after a
-  notification, 5 min while waiting for a review, 30 min when nothing moved for a day, and
-  exponential backoff on errors or `Retry-After`. Stops when the PR is merged or closed.
-- Auto-merge per PR is an explicit toggle. It enables native auto-merge when the detection
-  above says it is usable; otherwise it merges itself after approval + green checks + no
-  conflicts, using the same rules as `gh-follow.sh`.
-- No GitHub App, no webhooks on organization repos, no model calls in the polling loop.
-- Approving other people's PRs is out of scope. It would need per-PR criteria and the user's
-  explicit authorization for each PR, and is not automated.
-
-MVP if it is built: one container with the poller, a SQLite table of registered PRs
-(`ref`, `auto_merge`, `merge_method`, last snapshot, next check), a two-route API (register,
-toggle) and one page listing the PRs by org and repo. The `gh-follow` skill would keep working
-on its own and could later register PRs there instead of watching them itself.
+`GET /notifications` sends `X-Poll-Interval: 60`, and a conditional request
+(`If-Modified-Since`/`ETag`) answered `304` costs no rate limit (checked). It flags new
+comments and reviews on PRs the user authored or was asked to review, in any repo. It does not
+cover CI: check runs and statuses do not notify the PR author, so CI and mergeability still
+need per-PR checks.
