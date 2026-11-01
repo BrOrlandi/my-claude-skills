@@ -1,6 +1,6 @@
 ---
 name: gh-follow
-description: Follow one or more GitHub pull requests in the background and report each new comment, review, approval, change request, CI result, merge conflict and the moment a PR becomes ready to merge — optionally merging it automatically once someone approves. Backed by a deterministic polling script that keeps per-PR state, so restarting the watch never loses events. Use when the user wants to monitor, watch, follow or babysit a PR ("acompanha minha PR", "me avisa quando aprovarem", "segue essas PRs", "faz merge quando aprovarem", "watch my PRs", "tell me when it's approved"), or asks whether their PRs have news.
+description: Follow one or more GitHub pull requests in the background and report each new comment, review, approval, change request, CI result, merge conflict and the moment a PR becomes ready to merge. For "merge it once approved" it prefers GitHub's native auto-merge when the repo allows it and the branch rules require an approval, and otherwise merges from the local watcher. Backed by a deterministic polling script that keeps per-PR state, so restarting the watch never loses events. Use when the user wants to monitor, watch, follow or babysit a PR ("acompanha minha PR", "me avisa quando aprovarem", "segue essas PRs", "faz merge quando aprovarem", "watch my PRs", "tell me when it's approved"), or asks whether their PRs have news.
 argument-hint: "[PR url | owner/repo#N | N ...] [--mine] [--auto-merge] [--merge-method squash|merge|rebase] [--once]"
 ---
 
@@ -29,13 +29,36 @@ events (see **Webhooks and polling**).
 - `--include-self`, `--reset`, `--notify` (macOS notification per event, useful when the
   script runs outside Claude).
 
-Map plain-language requests to flags: "minhas PRs" → `--mine`; "faz merge quando aprovarem" →
-`--auto-merge`; "tem novidade?" / "como estão minhas PRs?" → `--once`.
+Map plain-language requests to flags: "minhas PRs" → `--mine`; "tem novidade?" / "como estão
+minhas PRs?" → `--once`; "faz merge quando aprovarem" → the flow in **Merge after approval**
+(native auto-merge first, `--auto-merge` only as the fallback).
+
+`--mine` reads at most 100 open PRs, once, at start: the search has no org filter, returns the
+most recently created first (observed, not guaranteed by GitHub), drops older ones beyond 100,
+and PRs opened later are not picked up until the watch restarts. Prefer naming the PRs.
 
 **Auto-merge only with an explicit request.** Merging is outward-facing and hard to undo. Add
 `--auto-merge` only when the user asked for an automatic merge in this conversation; never infer
 it from "follow" or "monitor". If they asked for it without naming a method, use the repo's
 convention when obvious (e.g. only squash allowed), otherwise the default `squash`, and say so.
+
+## Merge after approval
+
+Only for the user's own PRs, only when they asked for it, and never approving anything. Run the
+read-only detection in `references/merge-after-approval.md` (one GraphQL query per PR), then:
+
+1. **Native auto-merge** when all hold: `autoMergeAllowed`, `viewerCanEnableAutoMerge`, not a
+   draft, and `reviewDecision` is `REVIEW_REQUIRED` or `CHANGES_REQUESTED` (the branch rules
+   require an approval). Tell the user what GitHub will wait for (required approvals, required
+   checks, no conflicts), get a yes, run `gh pr merge <N> --repo <owner/repo> --auto --<method>`,
+   then follow the PR **without** `--auto-merge` just to report events. GitHub does the merge,
+   with nothing needing to stay awake.
+2. **Local fallback** otherwise: follow with `--auto-merge`. The watcher merges only after an
+   approval, green checks and no conflicts, but only while the session runs and the Mac is awake.
+
+Never turn on "Allow auto-merge", branch protection or rulesets for a repo or org to make
+option 1 possible: that is an admin change only the user can authorize, explicitly, per repo.
+Say which option applies and why, in one line per PR.
 
 ## Running it
 
@@ -106,14 +129,14 @@ A repo falls back to `--interval` polling when:
 - the forwarder dies later — a new one is tried every 10 minutes.
 
 Each forwarder creates a temporary repo webhook named `cli`, visible to the repo's admins. The
-script deletes it on exit and deletes leftovers on start. Use `--no-webhook` when that is
-unwelcome (e.g. company repos).
+script deletes it on exit and deletes leftovers on start. **Pass `--no-webhook` whenever a
+followed PR is in a repo the user does not own** (organizations, other people's repos): no
+webhooks and no GitHub Apps go on organization repos.
 
 Webhook status never goes to stdout, so it never wakes the agent. It is on stderr and in
 `~/.cache/gh-follow/webhooks.log`; read the log when the user asks whether the webhooks are live.
 
 Without the extension the script only polls. Suggest installing it once, in one line, when the
-user follows PRs on repos they own. `gh pr merge <N> --auto --squash` (GitHub native auto-merge)
-is another option: GitHub merges once branch protection is satisfied, with nothing running
-locally. It only waits for an approval when branch protection requires one, while
-`--auto-merge` here always waits for one.
+user follows PRs on repos they own. Polling costs, and the HomeServer service considered for
+when the Mac is off, are in `references/merge-after-approval.md`. Routine polling never runs
+the model: the script is plain `gh` + `jq`, and the agent only reads the events it prints.

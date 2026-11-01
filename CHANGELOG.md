@@ -9,6 +9,18 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-11-01
+
+### Changed
+
+- **`/gh-follow` prefers GitHub's native auto-merge for "merge it once approved".** It first
+  checks, read-only, whether the repo allows auto-merge and whether the base branch actually
+  requires an approval. When both hold, it turns on native auto-merge for your PR (after you
+  confirm), so GitHub merges it even with your Mac asleep. Otherwise it falls back to its own
+  `--auto-merge`, which always waits for an approval, green checks and no conflicts. It never
+  changes repo or org settings to make native auto-merge available, and it no longer creates
+  temporary webhooks on organization repos.
+
 ## 2026-10-23
 
 ### Added
