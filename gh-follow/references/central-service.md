@@ -218,7 +218,7 @@ Agent work, once implementation is authorized:
 Human actions that cannot be skipped:
 
 1. **Authorize the implementation** and confirm the repo name.
-2. **Set the panel password**: `ssh ubuntu@brorlandi.xyz`, then
+2. **Set the panel password**: `ssh ubuntu@orlandi1.brorlandi.xyz`, then
    `docker exec -it <container> gh-follow set-password`. Typed only in that terminal.
 3. **Log the VPS into GitHub**: `docker exec -it <container> gh-follow gh-login`, then enter
    the device code at github.com/login/device and approve GitHub CLI (or paste a classic PAT
