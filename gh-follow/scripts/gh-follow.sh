@@ -40,7 +40,8 @@
 #   DONE               nothing left to follow (exit 0)
 #
 # Webhooks: when the gh-webhook extension is installed (gh extension install cli/gh-webhook),
-# a `gh webhook forward` runs per repo. Each delivery triggers an immediate check of the PR it
+# a `gh webhook forward` runs per repo owned by you (never on organizations or other people's
+# repos, which are always polled). Each delivery triggers an immediate check of the PR it
 # is about, so a repo with a live forwarder is only polled every --safety-interval. A repo
 # whose forwarder cannot start (no admin, extension missing) or dies falls back to
 # --interval polling, and a new forwarder is tried every 10 minutes. The forwarder creates a
@@ -438,8 +439,15 @@ if [ "$ONCE" = 0 ] && [ "$WEBHOOK" = 1 ]; then
     trap cleanup EXIT
     trap 'exit 130' INT
     trap 'exit 143' TERM
+    me_lower=$(echo "$ME" | tr '[:upper:]' '[:lower:]')
     for ref in "${REFS[@]}"; do
       repo="${ref%#*}"
+      # Webhooks only on repos owned by the user: never on organizations or other people's
+      # repos, even where the user is admin. Those are polled.
+      if [ "$(echo "${repo%%/*}" | tr '[:upper:]' '[:lower:]')" != "$me_lower" ]; then
+        wh_log "$repo: not owned by $ME, no webhook, polling every ${INTERVAL}s"
+        continue
+      fi
       seen=0
       for r in ${WH_REPOS[@]+"${WH_REPOS[@]}"}; do [ "$r" = "$repo" ] && seen=1; done
       [ "$seen" = 0 ] && WH_REPOS+=("$repo")

@@ -1,9 +1,16 @@
-# GH-follow service (design, not built)
+# GH-follow service
 
-A single personal service, **GH-follow**, on the Oracle VPS at `https://gh-follow.brorlandi.xyz`.
-It follows the PRs the `gh-follow` skill registers and merges the user's own PRs under the
-policy in `merge-after-approval.md`. The Mac only registers and queries; it can sleep. Nothing
-here exists yet: no repository, container, Dokploy app, domain entry or GitHub login.
+A single personal service, **GH-follow**, on the Oracle VPS at `https://gh-follow.brorlandi.xyz`,
+code in the private repo `BrOrlandi/GH-follow` (its `README.md` and `docs/deploy.md` are the
+operating reference). It follows the PRs the `gh-follow` skill registers and merges the user's
+own PRs under the policy in `merge-after-approval.md`. The Mac only registers and queries.
+
+As built, it differs from the design below in three places. Passwords are hashed with
+**scrypt** (N=2^17, r=8, p=1), which ships with Node, instead of Argon2id, so there are no native
+dependencies. Storage is **SQLite** (`node:sqlite`) instead of Postgres. Sessions are
+server-side rows (random cookie id, only its hash stored) instead of `@fastify/secure-session`,
+on plain `node:http` with no npm dependencies. Merges ship **disabled** (dry run) until enabled
+in the panel or with `gh-follow merges enable`.
 
 ## Constraints
 
