@@ -11,27 +11,10 @@ History starts here: earlier work is in the git log, not in this file.
 
 ## 2026-11-01
 
-### Added
+### Removed
 
-- **`/gh-follow` can hand the watching to a GH-follow service.** With
-  `gh-follow/config.json` pointing at the service (see `gh-follow/config.example.json`), the
-  skill registers PRs, authorizes merges for an exact HEAD commit, lists them and relays the
-  service's events, and the Mac no longer polls GitHub. The service merges your own PR only
-  after a human with write access approved that HEAD, checks are green under the policy you
-  chose and there are no conflicts, re-checking right before a merge pinned to that SHA. A new
-  push cancels the authorization. Without the config, the local watcher works as before and
-  keeps its state.
-
-### Changed
-
-- **`/gh-follow` keeps webhooks off organization repos.** The local watcher now forwards
-  webhooks only on repos you own; organizations and other people's repos are always polled,
-  even where you are admin.
-- **Merging once approved stays independent of GitHub's settings.** `--auto-merge` never relies
-  on native auto-merge and never touches a repo's auto-merge setting, branch protection or
-  rulesets; it merges your own PR only after an approval, green checks and no conflicts, and
-  the repo's own rules still apply. Before starting it, the skill now tells you which commit
-  you are authorizing.
+- **`/gh-follow` was removed from this collection.** `./install.sh` no longer links it; if you
+  had it, remove the `~/.claude/skills/gh-follow` symlink.
 
 ## 2026-10-23
 
