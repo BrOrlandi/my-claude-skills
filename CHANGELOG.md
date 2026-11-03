@@ -9,13 +9,6 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
-## 2026-11-01
-
-### Removed
-
-- **`/gh-follow` was removed from this collection.** `./install.sh` no longer links it; if you
-  had it, remove the `~/.claude/skills/gh-follow` symlink.
-
 ## 2026-10-23
 
 ### Added
