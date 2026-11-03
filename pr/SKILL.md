@@ -37,13 +37,14 @@ If the user passes `review` (or `preview` / wording like "let me review first" /
    gh pr list --state all --head "$(git branch --show-current)" --json number,title,url,state,isDraft,headRefName
    ```
 3. **Read the repository's own PR conventions** before drafting anything — see **Repository Conventions** below. The repo's rules outrank this skill's defaults.
-4. If there are uncommitted changes, commit them first using the `commit` skill workflow (conventional commits, logical grouping).
-5. **Check whether this branch belongs on top of another open PR.** A branch built on an unmerged branch must target that branch, not the trunk — see **Stacked PRs** below. When a parent is found, the base for this PR becomes the parent PR's head branch.
-6. Use the detected default branch as the base, unless the user names a different base or the repo's docs specify one (some repos default to `main` but require feature PRs to target `develop`). Precedence: user's choice → detected stack parent → documented rule → detected default. When a documented rule overrides the detected default, say so when reporting the PR.
-7. If a PR already exists for the branch, update its title/body when useful instead of creating a duplicate.
-8. Generate a PR title from the branch commits using conventional commit style when possible — unless the repo documents a different title convention. Keep it short and reviewer-facing.
-9. Draft the PR body in the repo's format (template if one exists, otherwise the default below). Default: do NOT ask the user to approve the title or body first — create the PR directly, then show the final title and body so the user can review and request edits afterward. In **review mode** (see Arguments): show the drafted title and body and wait for approval or edits before creating.
-10. Create or update the PR with `gh`, targeting the detected base branch:
+4. **Audit environment variable changes** — new, removed, or consumed differently. Document new ones in the project and commit that before the PR exists. See **Environment Variables** below.
+5. If there are uncommitted changes, commit them first using the `commit` skill workflow (conventional commits, logical grouping).
+6. **Check whether this branch belongs on top of another open PR.** A branch built on an unmerged branch must target that branch, not the trunk — see **Stacked PRs** below. When a parent is found, the base for this PR becomes the parent PR's head branch.
+7. Use the detected default branch as the base, unless the user names a different base or the repo's docs specify one (some repos default to `main` but require feature PRs to target `develop`). Precedence: user's choice → detected stack parent → documented rule → detected default. When a documented rule overrides the detected default, say so when reporting the PR.
+8. If a PR already exists for the branch, update its title/body when useful instead of creating a duplicate.
+9. Generate a PR title from the branch commits using conventional commit style when possible — unless the repo documents a different title convention. Keep it short and reviewer-facing.
+10. Draft the PR body in the repo's format (template if one exists, otherwise the default below). Default: do NOT ask the user to approve the title or body first — create the PR directly, then show the final title and body so the user can review and request edits afterward. In **review mode** (see Arguments): show the drafted title and body and wait for approval or edits before creating.
+11. Create or update the PR with `gh`, targeting the detected base branch:
    ```bash
    gh pr create --base "$BASE" --title "<title>" --body-file <body-file>
    gh pr create --base "$BASE" --draft --title "<title>" --body-file <body-file>
@@ -51,10 +52,10 @@ If the user passes `review` (or `preview` / wording like "let me review first" /
    ```
    For a stacked PR the base is the parent's head branch and the chain is linked afterward — the
    commands live in **Stacked PRs** below.
-11. Request the default reviewers configured for the repository's GitHub org — see **Default Reviewers** below.
-12. After creating the PR, use the `jira-link` skill when applicable to offer Jira linking for repositories with configured Jira integration.
-13. If the repository has `.claude/release.json` and the branch's commits touch an app with changelog targets, offer the changelog update in one sentence using the `release` skill, and let the user decide. Stay quiet when there is no manifest — a repo without a release convention is not asking for one at PR time.
-14. Open the PR in the browser:
+12. Request the default reviewers configured for the repository's GitHub org — see **Default Reviewers** below.
+13. After creating the PR, use the `jira-link` skill when applicable to offer Jira linking for repositories with configured Jira integration.
+14. If the repository has `.claude/release.json` and the branch's commits touch an app with changelog targets, offer the changelog update in one sentence using the `release` skill, and let the user decide. Stay quiet when there is no manifest — a repo without a release convention is not asking for one at PR time.
+15. Open the PR in the browser:
    ```bash
    gh pr view -w
    ```
@@ -169,6 +170,91 @@ Should every PR here request a default reviewer team? If so, which one (e.g.
 `{org}/developers`)?" Persist the answer under `orgs.{org}`; if they decline, record
 nothing and do not ask again in this conversation.
 
+## Environment Variables
+
+Every PR states its environment variable changes. A variable that appears only in code reaches
+production as a crash or a silent fallback, and whoever deploys has no way to know it exists. Run
+this audit on every PR, including updates to an existing one.
+
+### Find the changes
+
+Scan the full branch diff plus anything still uncommitted, and look at both added and removed
+lines:
+
+```bash
+{ git diff "$BASE...HEAD"; git diff HEAD; } | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' \
+| grep -E 'process\.env|import\.meta\.env|Deno\.env|Bun\.env|os\.environ|os\.getenv|getenv\(|ENV\[|ENV\.fetch|System\.getenv|env::var|env\(|\$\{?[A-Z][A-Z0-9_]{2,}|^[+-][[:space:]]*(export[[:space:]]+)?[A-Z][A-Z0-9_]{2,}=|^[+-][[:space:]]*(ENV|ARG)[[:space:]]|^[+-][[:space:]]*-?[[:space:]]*[A-Z][A-Z0-9_]{2,}:'
+```
+
+The grep is a starting point, not the answer. Also read the diff for:
+
+- **Env files and templates** — `.env.example`, `.env.sample`, `.env.template`, `.env.*`.
+- **Config schemas** — zod/envalid/t3-env schemas, pydantic `BaseSettings`, `config/*.ts`,
+  Rails/Laravel config files, `settings.py`. A field added there is a new variable even when no
+  `process.env` line changed.
+- **Deploy and CI files** — `Dockerfile` `ENV`/`ARG`, `docker-compose*.yml`, Helm values, k8s
+  manifests, Terraform, `.github/workflows/*` `env:` and `secrets.*`, Vercel/Netlify/Fly config.
+- **Framework prefixes** — `NEXT_PUBLIC_`, `VITE_`, `REACT_APP_`, `EXPO_PUBLIC_`: these are inlined
+  at build time, so adding or renaming one means a rebuild, not just a restart.
+
+Classify every variable you find:
+
+- **Added** — read by the code for the first time on this branch.
+- **Removed** — no longer read anywhere. Confirm with a repo-wide search (`git grep -n VAR_NAME`)
+  before calling it removed; a line deleted in one file may still be read in another.
+- **Changed** — still read, but consumed differently: renamed, default added/changed/removed,
+  optional became required (or the reverse), new format or type (string to JSON, seconds to ms,
+  comma-separated list, URL now needs a scheme), moved between build time and runtime, moved to a
+  different service or container, or split/merged with another variable.
+
+Ignore variables only referenced in tests or test fixtures, and ones the platform provides
+(`NODE_ENV`, `PATH`, `HOME`, `CI`, `GITHUB_*`), unless the branch changes how they are used.
+
+### Document them in the project
+
+Before the PR is created, the project's own docs must match the code:
+
+1. Find where the repo documents its variables: `.env.example` (or sibling template), a README
+   "Environment"/"Configuration" section, `docs/`, `CLAUDE.md`/`AGENTS.md`, a config schema with
+   descriptions, deploy manifests. Follow that existing pattern; do not invent a new location
+   when one exists.
+2. **Added** — add each one with a short description, whether it is required, its default, and an
+   example value. Never write a real secret; use a placeholder like `your-api-key`.
+3. **Removed** — delete it from the same docs and templates.
+4. **Changed** — update the docs to the new name, default, or format.
+5. If the repo documents variables nowhere, add the new ones to `.env.example` (create it) and say
+   so in the PR.
+6. Commit these doc changes with the `commit` skill (e.g. `docs(env): document STRIPE_WEBHOOK_SECRET`)
+   so they ship in the same PR.
+
+### Report them in the PR
+
+Add an **Environment Variables** section to the PR body whenever there is at least one change,
+even when the repo uses a template (append it after the template's sections, or fill the
+template's own env/config section if it has one). List each variable once:
+
+```md
+## Environment Variables
+**Added**
+- `STRIPE_WEBHOOK_SECRET` (required, server) — signs incoming Stripe webhooks. Documented in `.env.example`.
+
+**Removed**
+- `LEGACY_API_URL` — no longer read; safe to delete from every environment after deploy.
+
+**Changed**
+- `CACHE_TTL` — now in milliseconds (was seconds). Update `3600` to `3600000`.
+- `API_URL` renamed to `BACKEND_URL`; the old name is no longer read.
+
+**Deploy action**: set `STRIPE_WEBHOOK_SECRET` in staging and production before merging.
+```
+
+Omit empty groups. The `Deploy action` line says what someone has to do in each environment
+(set, rename, delete, rebuild) and in which order relative to the merge. A removed variable is
+deleted **after** the deploy, a new required one is set **before**.
+
+When nothing changed, add no section and no "no env changes" line. Mention it in the completion
+report instead.
+
 ## Repository Conventions
 
 Every repo documents how it wants PRs written. Read those docs before drafting — a PR that ignores the house style is rework for the author and noise for the reviewer.
@@ -208,6 +294,9 @@ Use this structure **only when the repo has no PR template or documented format*
 - Related issues, tickets, or requirements
 - Breaking changes or important reviewer notes, if any
 
+## Environment Variables
+(only when the branch adds, removes or changes one, see Environment Variables above)
+
 ## How to Test
 - Specific verification steps
 - Setup requirements or test data
@@ -226,4 +315,4 @@ Write for reviewers:
 
 ## Completion
 
-Report the PR URL, whether it was created or updated, whether it is draft or ready for review, and whether Jira linking was completed, skipped, or not applicable. When the PR is stacked, also report the base branch, the parent PR, and this PR's position in the stack (e.g. "2 of 3").
+Report the PR URL, whether it was created or updated, whether it is draft or ready for review, the environment variable changes (or that there were none) and any deploy action they need, and whether Jira linking was completed, skipped, or not applicable. When the PR is stacked, also report the base branch, the parent PR, and this PR's position in the stack (e.g. "2 of 3").

@@ -9,6 +9,18 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-11-03
+
+### Changed
+
+- **`/pr` now reports environment variable changes.** Before opening or updating a PR, the skill
+  checks the branch for variables that were added, removed, or are consumed differently (renamed,
+  new default, now required, new format, build time vs runtime). New ones are documented where
+  the project already documents its variables (`.env.example`, README, config schema), or in a
+  new `.env.example` when there is no such place, and that doc change ships in the same PR. The
+  PR body gets an **Environment Variables** section listing each change and the deploy action it
+  needs, such as setting a variable before the merge or deleting one after.
+
 ## 2026-10-23
 
 ### Added
