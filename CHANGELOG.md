@@ -9,6 +9,25 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-11-10
+
+### Changed
+
+- **`/pr` follows the repository's PR template exactly.** Before drafting, the skill finds the
+  template and any PR command or convention doc the repo ships (`.github/pull_request_template.md`,
+  `.github/PULL_REQUEST_TEMPLATE/`, `docs/`, files like `.ai/commands/**/pr-create*.md` or
+  `.ai/context/pr-conventions.mdc`) and reads them from the PR's base branch, which may be
+  `staging` or `develop` rather than the default branch. The body keeps every heading in order,
+  replaces every `REPLACE_ME` placeholder, keeps every checklist with pre-checked boxes still
+  checked, and drops a section only when the template says to. The skill's own sections
+  (Environment Variables, ticket link, stack note) go after the template's. A self-check compares
+  the body with the template before the PR is created or edited. The skill's default
+  Context/How to Test format is now used only in repos without a template.
+- **`/pr` environment variable audit covers more cases.** Untracked files, `env.X` config objects
+  and CI `secrets.X`/`vars.X` references are scanned too, any change to how a variable is set
+  counts (including a value changed only in an env template or deploy file), and updating a PR
+  rebuilds the Environment Variables section from the whole branch.
+
 ## 2026-11-03
 
 ### Changed

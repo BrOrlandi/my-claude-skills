@@ -45,7 +45,7 @@ Rules:
 
 - **Write the title and body yourself.** `gh stack submit --auto` auto-generates titles for branches that have no PR yet, so never let it open the PR: `gh pr create` first, submit afterwards only to link.
 - **Never pass `--open` to `gh stack submit`.** It marks *existing* PRs ready for review too, silently un-drafting a draft elsewhere in the stack.
-- **Name the parent in the body.** A `Stacked on #123` line at the top of the Context section (in the repo's language) tells a reviewer landing here what precedes it.
+- **Name the parent in the body.** A `Stacked on #123` line (in the repo's language) tells a reviewer landing here what precedes it: at the top of the Context section in the default format, or in a short note after the last section when the repo has a PR template (never inside or in place of a template heading).
 - **Report the real base.** The base is the parent's head branch, not the trunk — a reviewer expecting `main` needs to be told.
 - **`gh stack sync` force-pushes.** It cascade-rebases and pushes every branch in the stack with `--force-with-lease --atomic`. Use it to bring the stack up to date after the parent moves, and confirm first when someone is already reviewing. `gh stack rebase` is the narrower tool for resolving conflicts.
 - **One layer per run.** This skill opens the PR for the current branch. It does not restructure existing branches or split commits without an explicit ask.

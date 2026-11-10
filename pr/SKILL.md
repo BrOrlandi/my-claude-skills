@@ -14,7 +14,7 @@ If the user provides mode-like wording, treat it as the creation mode:
 - draft: create a draft PR
 - ready/open: create a normal PR
 
-If the user asks to include testing instructions, include a `How to Test` section. Otherwise include it when there are obvious verification steps or recent verification output.
+If the user asks to include testing instructions, include a `How to Test` section (or fill the template's testing section, when the repo has a template). Otherwise include it when there are obvious verification steps or recent verification output.
 
 If the user passes `stack` (or `empilhar`, or names a parent like "on top of #123" / "depends on that PR"), use the stacked flow without asking — see **Stacked PRs**. `no-stack` / `flat` forces a PR against the trunk even when a parent is detected.
 
@@ -36,14 +36,14 @@ If the user passes `review` (or `preview` / wording like "let me review first" /
    git log --oneline "$BASE..HEAD"
    gh pr list --state all --head "$(git branch --show-current)" --json number,title,url,state,isDraft,headRefName
    ```
-3. **Read the repository's own PR conventions** before drafting anything — see **Repository Conventions** below. The repo's rules outrank this skill's defaults.
+3. **Read the repository's own PR conventions** before drafting anything — see **Repository Conventions** below. Locate the PR template and any PR command or convention doc, and read them from the PR's base branch. The repo's rules outrank this skill's defaults.
 4. **Audit environment variable changes** — new, removed, or consumed differently. Document new ones in the project and commit that before the PR exists. See **Environment Variables** below.
 5. If there are uncommitted changes, commit them first using the `commit` skill workflow (conventional commits, logical grouping).
 6. **Check whether this branch belongs on top of another open PR.** A branch built on an unmerged branch must target that branch, not the trunk — see **Stacked PRs** below. When a parent is found, the base for this PR becomes the parent PR's head branch.
 7. Use the detected default branch as the base, unless the user names a different base or the repo's docs specify one (some repos default to `main` but require feature PRs to target `develop`). Precedence: user's choice → detected stack parent → documented rule → detected default. When a documented rule overrides the detected default, say so when reporting the PR.
 8. If a PR already exists for the branch, update its title/body when useful instead of creating a duplicate.
 9. Generate a PR title from the branch commits using conventional commit style when possible — unless the repo documents a different title convention. Keep it short and reviewer-facing.
-10. Draft the PR body in the repo's format (template if one exists, otherwise the default below). Default: do NOT ask the user to approve the title or body first — create the PR directly, then show the final title and body so the user can review and request edits afterward. In **review mode** (see Arguments): show the drafted title and body and wait for approval or edits before creating.
+10. Draft the PR body. **If the repo has a PR template, the body is that template filled in** (see **Following a PR Template**); the default format below is only for repos without one. Before creating or editing, run the template self-check from that section and fix what it reports. Default: do NOT ask the user to approve the title or body first — create the PR directly, then show the final title and body so the user can review and request edits afterward. In **review mode** (see Arguments): show the drafted title and body and wait for approval or edits before creating.
 11. Create or update the PR with `gh`, targeting the detected base branch:
    ```bash
    gh pr create --base "$BASE" --title "<title>" --body-file <body-file>
@@ -178,12 +178,13 @@ this audit on every PR, including updates to an existing one.
 
 ### Find the changes
 
-Scan the full branch diff plus anything still uncommitted, and look at both added and removed
-lines:
+Scan the full branch diff plus anything still uncommitted (untracked files included), and look at
+both added and removed lines:
 
 ```bash
-{ git diff "$BASE...HEAD"; git diff HEAD; } | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' \
-| grep -E 'process\.env|import\.meta\.env|Deno\.env|Bun\.env|os\.environ|os\.getenv|getenv\(|ENV\[|ENV\.fetch|System\.getenv|env::var|env\(|\$\{?[A-Z][A-Z0-9_]{2,}|^[+-][[:space:]]*(export[[:space:]]+)?[A-Z][A-Z0-9_]{2,}=|^[+-][[:space:]]*(ENV|ARG)[[:space:]]|^[+-][[:space:]]*-?[[:space:]]*[A-Z][A-Z0-9_]{2,}:'
+ENV_RE='process\.env|import\.meta\.env|Deno\.env|Bun\.env|os\.environ|os\.getenv|getenv\(|ENV\[|ENV\.fetch|System\.getenv|env::var|env\(|\benv\.[A-Z]|secrets\.[A-Z]|vars\.[A-Z]|\$\{?[A-Z][A-Z0-9_]{2,}|^[+-]?[[:space:]]*(export[[:space:]]+)?[A-Z][A-Z0-9_]{2,}=|^[+-]?[[:space:]]*(ENV|ARG)[[:space:]]|^[+-]?[[:space:]]*-?[[:space:]]*[A-Z][A-Z0-9_]{2,}:'
+{ git diff "$BASE...HEAD"; git diff HEAD; } | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' | grep -E "$ENV_RE"
+git ls-files -z --others --exclude-standard | xargs -0 -r grep -HnE "$ENV_RE"   # untracked files
 ```
 
 The grep is a starting point, not the answer. Also read the diff for:
@@ -205,7 +206,9 @@ Classify every variable you find:
 - **Changed** — still read, but consumed differently: renamed, default added/changed/removed,
   optional became required (or the reverse), new format or type (string to JSON, seconds to ms,
   comma-separated list, URL now needs a scheme), moved between build time and runtime, moved to a
-  different service or container, or split/merged with another variable.
+  different service or container, or split/merged with another variable. When in doubt, it is
+  Changed: any touched line that alters how the variable is read, validated, defaulted or set
+  (including a value changed only in an env template, CI or deploy file) goes in the report.
 
 Ignore variables only referenced in tests or test fixtures, and ones the platform provides
 (`NODE_ENV`, `PATH`, `HOME`, `CI`, `GITHUB_*`), unless the branch changes how they are used.
@@ -229,9 +232,10 @@ Before the PR is created, the project's own docs must match the code:
 
 ### Report them in the PR
 
-Add an **Environment Variables** section to the PR body whenever there is at least one change,
-even when the repo uses a template (append it after the template's sections, or fill the
-template's own env/config section if it has one). List each variable once:
+Add an **Environment Variables** section to the PR body whenever there is at least one Added,
+Changed or Removed variable, even when the repo uses a template: fill the template's own
+env/config section if it has one, otherwise append it **after** the template's last section. List
+each variable once:
 
 ```md
 ## Environment Variables
@@ -253,40 +257,94 @@ Omit empty groups. The `Deploy action` line says what someone has to do in each 
 deleted **after** the deploy, a new required one is set **before**.
 
 When nothing changed, add no section and no "no env changes" line. Mention it in the completion
-report instead.
+report instead. When updating an existing PR, rebuild the section from the whole branch: drop
+entries the branch no longer makes, add ones from the new commits.
 
 ## Repository Conventions
 
 Every repo documents how it wants PRs written. Read those docs before drafting — a PR that ignores the house style is rework for the author and noise for the reviewer.
 
-Find them:
+Find them. Read the PR template and PR docs from the **PR's base branch**, not the working tree:
+the base is what reviewers hold the PR to, and it may not be the repo's default branch (some repos
+open PRs against `staging` or `develop`). If the docs say PRs target a different branch than the
+one you checked, re-read from that branch.
 
 ```bash
+git fetch origin "$BASE" --quiet
 ls CLAUDE.md AGENTS.md CONTRIBUTING.md README.md 2>/dev/null
-ls .github/PULL_REQUEST_TEMPLATE.md .github/pull_request_template.md \
-   .github/PULL_REQUEST_TEMPLATE/*.md docs/PULL_REQUEST_TEMPLATE.md 2>/dev/null
+
+# PR templates, plus PR commands and convention docs written for agents or humans
+git ls-tree -r --name-only "origin/$BASE" | grep -iE \
+  '^(\.github/|docs/)?pull_request_template(/[^/]+)?\.md$|(^|/)[^/]*(pr|pull[-_]?request)[-_](conventions?|guidelines?|create)[^/]*\.(md|mdc)$'
+
+git show "origin/$BASE:<path>"   # read each match from the base branch
 
 # conventions local to the directories this PR touches
 git diff --name-only "$BASE...HEAD" | xargs -r -n1 dirname | sort -u \
   | while read -r d; do ls "$d"/CLAUDE.md "$d"/AGENTS.md "$d"/README.md 2>/dev/null; done
 ```
 
-Read what exists. Skip re-reading any `CLAUDE.md` already loaded into your context.
+Read what exists. Skip re-reading any `CLAUDE.md` already loaded into your context. A PR command
+or convention doc (e.g. `.ai/commands/**/pr-create*.md`, `.ai/context/pr-conventions.mdc`) is
+the team's own instructions for writing PRs: follow it like a template, including how it says to
+fill each section. When `PULL_REQUEST_TEMPLATE/` holds several templates, pick the one those docs
+name for this kind of change, or the one matching it.
 
 What to take from each:
 
-- **A PR template is binding.** If one exists, use its headings, order and checklists verbatim instead of the default format below. Fill every section; keep checklist items and tick only the ones that are actually true.
+- **A PR template is binding, and is followed exactly.** See **Following a PR Template** below.
+  When a template exists, this skill's default body format does not apply at all.
 - **`CLAUDE.md` / `AGENTS.md` / `CONTRIBUTING.md`** — title format (conventional commits, ticket prefix, or something else), required sections, base-branch rules (e.g. features target `develop`), whether PRs open as draft, screenshot or changelog requirements, labels and reviewers to set.
 - **READMEs of the touched directories** — the vocabulary that module uses. Name things the way the module names them, so reviewers recognize what changed.
 - **Language.** If the repo's docs and recent merged PRs are written in a language other than English, write the PR in that language. Check with `gh pr list --state merged --limit 5 --json title,body`.
 
-Precedence when these disagree: **explicit user instruction → repo template → repo docs (`CLAUDE.md`, `CONTRIBUTING.md`) → this skill's default format.**
+Precedence when these disagree: **explicit user instruction → repo template and PR command/convention docs → repo docs (`CLAUDE.md`, `CONTRIBUTING.md`) → this skill's default format.**
 
 Do not fake compliance. If a required section can't be filled from the actual diff, say what is missing and why instead of inventing content to fill the heading.
 
+### Following a PR Template
+
+Teams put items in their template on purpose (a security team may require its checklist on every
+PR), and a body in any other shape gets sent back. Start the body from the template file itself,
+not from memory, and fill it in place:
+
+- **Every heading, in order**, with its exact text and level. Do not rename, merge, reorder or
+  add headings between them.
+- **Every placeholder replaced** — `REPLACE_ME`, `<describe…>`, `TODO`, empty `Jira:`/`Figma:`
+  slots. A slot the diff cannot fill gets a short honest note (`Figma: n/a`), never the
+  placeholder.
+- **Every checklist item kept.** Boxes the template ships pre-checked (`- [x]`) stay checked
+  exactly as they are. Tick an unchecked box only when it is true for this PR; never delete one.
+- **Sections are removed only when the template says so** (e.g. "delete this section if there is
+  no UX change"). Otherwise an inapplicable section stays with a one-line reason.
+- **Instructions in the template** (HTML comments, italic hints) are followed. Leaving the
+  comments in is fine; they do not render.
+- **The skill's own additions go after the template's last section**: Environment Variables,
+  ticket link, stack note, How to Test. When the template already has a slot for one of them (a
+  `Jira` line, a testing or config section), fill that slot instead of adding a section.
+- **Updating a PR** whose body does not follow the template (e.g. an earlier body in this skill's
+  default format): rebuild it on the template, carrying over what still applies.
+
+**Self-check before `gh pr create` / `gh pr edit`.** With the template's path in `$TEMPLATE` and
+the drafted body in `$BODY_FILE`:
+
+```bash
+TPL="$(git show "origin/$BASE:$TEMPLATE")"
+heads()   { grep -E '^#{1,6} ' | sed 's/[[:space:]]*$//'; }
+checked() { grep -E '^[[:space:]]*[-*] \[[xX]\]' | sed 's/[[:space:]]*$//'; }
+diff <(printf '%s\n' "$TPL" | heads) <(heads < "$BODY_FILE")                  # headings
+grep -Fxv -f <(checked < "$BODY_FILE") <(printf '%s\n' "$TPL" | checked)      # pre-checked boxes lost
+grep -n 'REPLACE_ME' "$BODY_FILE"                                             # placeholders left
+```
+
+In the heading diff, a `<` line is a template heading that is missing or out of order: fix the
+body unless the template itself allows removing that section, or the heading is itself an
+instruction to the author (e.g. `#### Remove this section if…`). `>` lines are fine only at the end
+(the skill's additions). The other two commands must print nothing. Fix and re-run until clean.
+
 ## PR Body Format
 
-Use this structure **only when the repo has no PR template or documented format**:
+Use this structure **only when the repo has no PR template or documented format**. If the repo has a template, never use these headings in place of the template's:
 
 ```md
 ## Context
@@ -315,4 +373,4 @@ Write for reviewers:
 
 ## Completion
 
-Report the PR URL, whether it was created or updated, whether it is draft or ready for review, the environment variable changes (or that there were none) and any deploy action they need, and whether Jira linking was completed, skipped, or not applicable. When the PR is stacked, also report the base branch, the parent PR, and this PR's position in the stack (e.g. "2 of 3").
+Report the PR URL, whether it was created or updated, whether it is draft or ready for review, which PR template the body follows (path and branch it was read from) or that the repo has none, the environment variable changes (or that there were none) and any deploy action they need, and whether Jira linking was completed, skipped, or not applicable. When the PR is stacked, also report the base branch, the parent PR, and this PR's position in the stack (e.g. "2 of 3").
