@@ -9,6 +9,22 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-11-17
+
+### Added
+
+- **`/pr-review-loop` — review a PR and follow it until it can be approved.** It reviews someone else's PR
+  against the repository's own rules (`CLAUDE.md`, `AGENTS.md` and the docs they point to) and the
+  project's memory, and posts one review with inline comments. Then it waits in the background. When the
+  author pushes, replies or reacts, it runs another round: it checks each finding in the new code, answers
+  the replies (accepting a valid reason, pushing back once on one that does not hold), reviews the new
+  code, and resolves the threads it opened. It approves the PR once every finding is fixed or validly
+  answered and CI is green. After approving it keeps watching: new commits get a delta review (each fix still in place, no
+  large change to what was approved, nothing new broken) before it approves again. It never requests
+  changes, pushes or merges. After 5 rounds (`max-rounds=N`)
+  or 24 hours without activity it hands the PR back to you. The wait only runs while the Claude Code
+  session is open.
+
 ## 2026-11-10
 
 ### Changed
