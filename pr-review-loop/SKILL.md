@@ -2,7 +2,7 @@
 name: pr-review-loop
 description: Review someone else's GitHub PR against the repository's own rules (CLAUDE.md, AGENTS.md, the docs they point to) and the project's memory, post one review with inline comments, then keep following the PR on its own — when the author pushes fixes, replies or reacts, run another round that checks each finding, answers the replies, reviews the new code, and approve the PR once every finding is fixed or answered with a valid reason and CI is green; after approving, it keeps watching and re-reviews any new commits before approving again. Runs only when invoked explicitly — `/pr-review-loop 123` — because it posts reviews and approves on the user's behalf.
 disable-model-invocation: true
-argument-hint: "<PR number or URL> [max-rounds=N]"
+argument-hint: "<PR number or URL> [max-rounds=N] | slack"
 ---
 
 # PR Review Loop
@@ -16,6 +16,29 @@ requesting changes, or editing the author's code.
 
 - `$ARGUMENTS`: PR number or URL (required unless the current branch has a PR). Optional `max-rounds=N`
   (default 5): after N re-review rounds without approval, stop and hand the PR back to the user.
+
+## Slack mode: `/pr-review-loop slack`
+
+Instead of one PR, watch Slack and start a loop for every PR someone hands the user: a message with a GitHub
+PR URL in a **direct message**, or in a **group DM or channel that mentions them** (`<@their id>`). Their own
+messages never count. Needs `slackcli` logged in to the workspace (`slackcli auth whoami`); without it, stop
+and point the user to the `slack` skill's login step.
+
+1. Launch the watcher **in the background** (`run_in_background: true`):
+   ```bash
+   ~/.claude/skills/pr-review-loop/scripts/watch-slack-for-prs.py
+   ```
+   It polls Slack search every 5 minutes (`INTERVAL`) with the user's own token, and exits as soon as it finds
+   new messages, printing one `PR <url> | from <user> | in <channel or DM> | <permalink>` line per PR. It
+   starts from now (or from the last message it handed over: `~/.claude/pr-review-loop/slack-seen.json`), so
+   old history is not replayed; `--since <unix ts>` reaches back on purpose.
+2. For each PR line, skip it — and say why in one line — when the PR is the user's own, is not OPEN, already
+   has a loop running in this session, or the user already approved its current head. Otherwise run this
+   skill on it (Step 0 onward), one loop per PR, each with its own background wait.
+3. Relaunch the watcher right away, so Slack is watched while the loops run. `TIMEOUT` (24h) → relaunch it
+   too; only the user stops Slack mode.
+
+Tell the user once that Slack mode is on, how often it polls, and that it lives in this session.
 
 ## Step 0: Preconditions
 

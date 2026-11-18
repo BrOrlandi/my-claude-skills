@@ -23,7 +23,11 @@ History starts here: earlier work is in the git log, not in this file.
   large change to what was approved, nothing new broken) before it approves again. It never requests
   changes, pushes or merges. While CI is still running on a reviewed PR, it leaves one comment saying the
   approval waits on CI, and edits that same comment with the result (approved with a link, CI failed, or
-  new commits being reviewed). After 5 rounds (`max-rounds=N`)
+  new commits being reviewed).
+- **`/pr-review-loop slack` starts a loop for every PR sent to you on Slack.** Every 5 minutes it searches
+  Slack with your own `slackcli` login for GitHub PR links in your DMs, and in group DMs and channels where
+  you are mentioned, and runs the review loop on each new one. It skips your own PRs, closed ones and PRs
+  you already approved. It never picks up the same message twice. After 5 rounds (`max-rounds=N`)
   or 24 hours without activity it hands the PR back to you. The wait only runs while the Claude Code
   session is open.
 
