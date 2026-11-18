@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Show the review status on the Slack message that handed over the PR, as one reaction from the reviewer:
 #   reviewing ⏳  ·  changes 🔄 (findings for the author)  ·  approved ✅
-# Setting a status removes the other two, so the message carries only the current one.
+# Setting a status removes the other two and the trigger reaction, so the message carries only the current one.
 #
 # Usage: slack-status.sh <channel id> <message ts> <reviewing|changes|approved>
 # Never fails the caller: a Slack error is printed to stderr and the script exits 0.
@@ -17,7 +17,9 @@ case "$status" in
 esac
 
 export SLACKCLI_NO_UPDATE_NOTIFIER=1
-for name in hourglass_flowing_sand arrows_counterclockwise white_check_mark; do
+# Also remove the reaction that asked for the review (:eyes: by default), so only the status shows.
+trigger="${AGENTIC_REVIEWER_TRIGGER_REACTIONS:-eyes}"
+for name in hourglass_flowing_sand arrows_counterclockwise white_check_mark ${trigger//,/ }; do
     [[ "$name" == "$want" ]] && continue
     slackcli messages unreact --channel-id "$channel" --timestamp "$ts" --emoji "$name" >/dev/null 2>&1 || true
 done
