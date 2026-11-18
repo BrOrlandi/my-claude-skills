@@ -10,6 +10,7 @@ every project and update with a `git pull`.
 | [**Commands**](#commands) | Slash commands you type yourself |
 | [**Hooks**](#hooks) | Sounds when Claude needs you or finishes a turn, last-prompt capture for the statusline, and (macOS) keeping the Mac awake while it works |
 | [**Statusline**](#statusline) | Project · branch · model · context bar · rate-limit usage · your last prompt — every row optional |
+| [**Skills with their own repository**](#skills-with-their-own-repository) | Bigger skills of mine that live in a dedicated repo |
 | [**Third-party skills**](#third-party-skills) | Community skills this repo tracks as separate clones |
 
 ## Install by prompt
@@ -171,6 +172,14 @@ needs the last-prompt hooks). **Every row can be turned off** in `statusline/con
 For Codex, the equivalent native status-line configuration lives in
 [`codex-statusline/`](codex-statusline/): project, branch, model/reasoning, context usage and
 usage-limit items in `~/.codex/config.toml`.
+
+## Skills with their own repository
+
+**Liked these skills?** There are more of mine in dedicated repositories:
+
+| Skill | What it does |
+| ----- | ------------ |
+| [**codex-claude-resume**](https://github.com/BrOrlandi/codex-claude-resume) | Codex skill for resuming Claude Code sessions from local history |
 
 ## Third-Party Skills
 
