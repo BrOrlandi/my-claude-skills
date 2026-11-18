@@ -9,6 +9,20 @@ number and no tags** — you install whatever `main` has, with `./install.sh`
 
 History starts here: earlier work is in the git log, not in this file.
 
+## 2026-11-18
+
+### Removed
+
+- **`/pr-review-loop` moved to its own repository, [agentic-reviewer](https://github.com/BrOrlandi/agentic-reviewer).**
+  It is now a Claude Code plugin: the same review loop, plus a real-time Slack listener that opens one review
+  session per PR, a triage that skips notifications, a deploy checklist mode, and rules learned from each
+  repository's feedback. Install it with `/plugin marketplace add BrOrlandi/agentic-reviewer`, then remove the
+  old symlink with `./uninstall.sh` and `./install.sh` again (or delete `~/.claude/skills/pr-review-loop`).
+
+### Added
+
+- **README: skills with their own repository** — a table linking the bigger skills that live in a dedicated repo.
+
 ## 2026-11-17
 
 ### Added
