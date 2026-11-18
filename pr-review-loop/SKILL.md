@@ -15,9 +15,32 @@ requesting changes, or editing the author's code.
 ## Arguments
 
 - `$ARGUMENTS`: PR number or URL (required unless the current branch has a PR). Optional `max-rounds=N`
-  (default 5): after N re-review rounds without approval, stop and hand the PR back to the user.
+  (default 5): after N re-review rounds without approval, stop and hand the PR back to the user. Optional
+  `slack=<channel id>:<message ts>`: the Slack message that handed the PR over; the loop shows its status on it
+  (see **Slack status reactions**). A Slack message link given instead is turned into that pair
+  (`.../archives/<channel>/p<16 digits>` → ts `<first 10>.<last 6>`).
+
+## Slack status reactions
+
+When the loop has a `slack=` message, keep one status reaction on it, from the user's account, with
+`~/.claude/skills/pr-review-loop/scripts/slack-status.sh <channel> <ts> <status>` (it swaps the other two away
+and never fails the loop):
+
+| Status | Emoji | When |
+| --- | --- | --- |
+| `reviewing` | ⏳ | at the start of round 1, of every re-review round (Step 4) and of every delta review (Step 5b) |
+| `changes` | 🔄 | right after posting a review with findings, or ending a round with findings still open |
+| `approved` | ✅ | right after the approval (Step 5 and every re-approval in 5b) |
+
+Save the pair in the state file as `slack: {channel, ts}` so a resumed loop keeps reacting. Waiting for CI is still
+`reviewing`. No `slack=` → no reactions.
 
 ## Slack mode: `/pr-review-loop slack`
+
+**On Bruno's Mac, Slack mode is done by the `ai.birdie.slack-prs` launchd agent** (`~/Birdie/birdie-os/automacoes/slack-prs/`):
+it listens in real time and opens each PR's loop in its own Orca terminal. Before starting the poller below, run
+`launchctl print gui/$(id -u)/ai.birdie.slack-prs`; if the agent is loaded, do not start the poller (two consumers open
+duplicate reviews). Say the listener is on and point to its log instead. Use the poller only where the agent is not installed.
 
 Instead of one PR, watch Slack and start a loop for every PR someone hands the user: a message with a GitHub
 PR URL in a **direct message**, or in a **group DM or channel that mentions them** (`<@their id>`). Their own
@@ -89,9 +112,25 @@ rests on a rule cites it; a pattern the repo endorses is never a finding.
    categories 🔴 🔒 ⚡ 🐛 ✨ 🧪 📝): read the full file, trace callers, look for bugs, security, performance,
    rule violations, missing tests. **Verify every finding** in the code before keeping it — a concrete
    scenario (input → wrong result) or a quoted rule. Drop what you cannot back.
-4. Show the findings to the user in the terminal (same format as `pr-review` Step 4), then post them **without
-   asking** — this skill is the automatic flow.
-5. Post one review with `event: "COMMENT"`; never `REQUEST_CHANGES` (it blocks the PR until this reviewer
+4. **Judge the review comments already on the PR** before posting anything. Fetch inline comments
+   (`gh api …/pulls/<N>/comments`), reviews (`…/pulls/<N>/reviews`) and PR-level comments
+   (`…/issues/<N>/comments`). Verify each finding in them against the code and the repo's rules, as if it were
+   your own:
+   - **From a review bot** (`github-actions[bot]` and other `[bot]` accounts; the Claude review panel is one):
+     - agree → react 👍 on the comment (`gh api …/pulls/comments/<id>/reactions -f content=+1`, or
+       `…/issues/comments/<id>/reactions` for a PR-level one) and track it in the state file as an
+       **adopted finding** (`source: "bot"`, its `comment_id` and `thread_id`). Do not re-post it in your review;
+     - disagree → reply in its thread, one or two lines with the concrete reason (code or rule), ending with the
+       AI footer, so the author knows to skip it. Not tracked.
+   - **From a person**: agree → react 👍 and track it as an adopted finding (`source: "human"`); disagree → do
+     nothing. Never reply to another person's comment.
+   - A finding already resolved, or one the author already answered validly, is not adopted.
+   - Never downgrade an adopted finding below the severity the repo's rules give it (e.g. a rule that says
+     `should_fix`): "note, not blocking" in the approval body is not an answer.
+5. Show the findings to the user in the terminal (same format as `pr-review` Step 4), with the adopted and the
+   rejected existing comments listed apart, then post **without asking** — this skill is the automatic flow.
+   The review body names the adopted findings (`Also agree with the open bot finding on <path>`).
+6. Post one review with `event: "COMMENT"`; never `REQUEST_CHANGES` (it blocks the PR until this reviewer
    comes back, and the loop may be stopped). Build the payload in the scratchpad and post it:
    ```bash
    gh api repos/<o>/<r>/pulls/<N>/reviews --method POST --input "$SCRATCH/review-<N>.json"
@@ -100,9 +139,11 @@ rests on a rule cites it; a pattern the repo endorses is never a finding.
    that is inside the diff). Comments are written in the language of the PR's description, and every body
    ends with `\n\n---\n_[Generated by AI]_`. The review body opens with
    `Review round 1 — N findings…`.
-6. **No findings** → skip to Step 5 (approval) directly.
-7. Save the loop state in `$SCRATCH/pr-review-loop-<owner>-<repo>-<N>.json`:
-   `{round, reviewed_sha, posted_at, findings: [{id, comment_id, thread_id, path, line, tag, summary, status: "open"}]}`
+7. **No findings of your own and none adopted** → skip to Step 5 (approval) directly. Adopted findings alone
+   still make a round: post a short review that points to them and wait for the author.
+8. Save the loop state in `$SCRATCH/pr-review-loop-<owner>-<repo>-<N>.json`:
+   `{round, reviewed_sha, posted_at, findings: [{id, source, comment_id, thread_id, path, line, tag, summary, status: "open"}]}`
+   (`source`: `own`, `bot` or `human`)
    — `comment_id` from the review's comments (`gh api …/pulls/<N>/reviews/<review_id>/comments`), `thread_id`
    from the `reviewThreads` GraphQL query (`comments(first:1){nodes{databaseId}}` matches it to the comment).
    `posted_at` is the review's `submitted_at`.
@@ -144,8 +185,9 @@ when installed), not this loop.
    - commits since `reviewed_sha`: `git fetch` + `git diff <reviewed_sha>..<new head>` (in the worktree,
      `git checkout --detach origin/<headRefName>`); a force-push that drops `reviewed_sha` → review the full
      diff again against the base;
-   - every reply in the threads this loop opened (`gh api …/pulls/<N>/comments`, `in_reply_to_id` = our
-     `comment_id`), plus PR-level comments and reviews by humans after `posted_at`;
+   - every reply in the threads this loop opened or adopted (`gh api …/pulls/<N>/comments`, `in_reply_to_id` =
+     the finding's `comment_id`), plus PR-level comments and reviews by humans after `posted_at`;
+   - review comments posted since `posted_at` by bots or other people → judge them as in Step 2.4;
    - CI: `gh pr checks <N>`.
 2. Classify each open finding:
    - **fixed** — the new code removes the problem. Verify it in the code, not from the reply; "Fixed in abc123"
@@ -165,7 +207,8 @@ when installed), not this loop.
    - reply in each thread whose status changed, one line (`Verified in <sha>: …` / `Makes sense — …`),
      ending with the `[Generated by AI]` footer;
    - resolve the threads of findings now fixed or validly answered, when the author has not already
-     (`resolveReviewThread` GraphQL mutation with the `thread_id`);
+     (`resolveReviewThread` GraphQL mutation with the `thread_id`) — own and bot threads; a person's thread is
+     theirs to resolve;
    - new findings → one new review (`COMMENT`), body `Review round N — …`, listing what is still open;
    - update the state file (`round += 1`, `reviewed_sha`, `posted_at` = the latest thing this loop posted,
      statuses).
@@ -175,7 +218,8 @@ when installed), not this loop.
 ## Step 5: Approve
 
 Approve only when **all** hold:
-- every finding is fixed or validly answered, and this round found nothing new;
+- every finding — own and adopted (bot or person) — is fixed or validly answered, and this round found nothing
+  new;
 - CI is green: `gh pr checks <N>` has no failing check. A failing check: when it is caused by the PR, post
   it as a finding (round continues); when it is clearly unrelated (flaky infra, a failure also on the base
   branch), say so in the approval body. Pending checks → see **Waiting for CI** below;
