@@ -87,9 +87,11 @@ ready for review.
 
 Findings must come from the repository's rules first and taste last. Read, in this order:
 
-1. **Repository instructions**, from the PR's base branch: root `CLAUDE.md`, `AGENTS.md`, `.claude/CLAUDE.md`,
-   `CONTRIBUTING.md`, the PR template, and the `CLAUDE.md`/`AGENTS.md`/`README.md` of every directory the PR
-   touches. **Follow their pointers**: when they say "before changing X read Y" (e.g. `.ai/context/*.mdc`,
+1. **Repository instructions**, from the PR's base branch: every AI or contributor instruction file the repo has —
+   `REVIEW.md` first when it exists (it is written for reviewers), then `CLAUDE.md`, `.claude/CLAUDE.md`,
+   `AGENTS.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.cursor/rules/` or `.cursorrules`,
+   `CONTRIBUTING.md`, the PR template — at the root and in every directory the PR touches (plus that directory's
+   `README.md`). List them with `git ls-tree -r --name-only <base> | grep -iE '(^|/)(review|claude|agents|gemini|contributing)\.md$|copilot-instructions|\.cursor'`. **Follow their pointers**: when they say "before changing X read Y" (e.g. `.ai/context/*.mdc`,
    `docs/…`), read Y for every X the diff changes. Skip files already in context.
 2. **Project memory** — conventions the team agreed that the repo may not state:
    - the Claude Code auto-memory of this project: `~/.claude/projects/<cwd with / replaced by ->/memory/MEMORY.md`
