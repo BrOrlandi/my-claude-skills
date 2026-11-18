@@ -18,7 +18,9 @@ requesting changes, or editing the author's code.
   (default 5): after N re-review rounds without approval, stop and hand the PR back to the user. Optional
   `slack=<channel id>:<message ts>`: the Slack message that handed the PR over; the loop shows its status on it
   (see **Slack status reactions**). A Slack message link given instead is turned into that pair
-  (`.../archives/<channel>/p<16 digits>` → ts `<first 10>.<last 6>`).
+  (`.../archives/<channel>/p<16 digits>` → ts `<first 10>.<last 6>`). Optional `close-terminal`: this session
+  runs in an Orca terminal opened only for this PR (the `slack-prs` listener passes it); when the PR is merged or
+  closed, Step 6 ends by closing that terminal.
 
 ## Slack status reactions
 
@@ -299,6 +301,11 @@ Report to the user, short:
 
 Clean up: remove the worktree (`git worktree remove --force`) and the payload files. Keep the state file only
 when the loop stopped without approving, so a later run resumes from it.
+
+**Close the review terminal** when the run has `close-terminal` and the PR is MERGED or CLOSED (not on TIMEOUT
+or hand-back — the user may still want the session). After the report and the cleanup, close this session's own
+Orca terminal with the `orca-cli` skill: `orca terminal close --terminal "$ORCA_TERMINAL_HANDLE"`. It is the last
+action of the loop; the session ends with it. No `ORCA_TERMINAL_HANDLE` → skip it and say so.
 
 ## Rules
 
