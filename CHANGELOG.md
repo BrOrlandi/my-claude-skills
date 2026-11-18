@@ -21,7 +21,9 @@ History starts here: earlier work is in the git log, not in this file.
   code, and resolves the threads it opened. It approves the PR once every finding is fixed or validly
   answered and CI is green. After approving it keeps watching: new commits get a delta review (each fix still in place, no
   large change to what was approved, nothing new broken) before it approves again. It never requests
-  changes, pushes or merges. After 5 rounds (`max-rounds=N`)
+  changes, pushes or merges. While CI is still running on a reviewed PR, it leaves one comment saying the
+  approval waits on CI, and edits that same comment with the result (approved with a link, CI failed, or
+  new commits being reviewed). After 5 rounds (`max-rounds=N`)
   or 24 hours without activity it hands the PR back to you. The wait only runs while the Claude Code
   session is open.
 
